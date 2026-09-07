@@ -1,0 +1,10 @@
+{
+  "name": "Utility-G-code Generator",
+  "description": "Générateur G-code multi-opérations : surfaçage, perçages contour, matrice, rayon 90°, trou oblong, filetage. Pour FigUI / FluidNC.",
+  "version": "1.0.2",
+  "layout": "full",
+  "icon": "icon.png",
+  "layoutTablet": "full",
+  "entry": "index.html",
+  "files": ["index.html","settings.json","icon.png"]
+}

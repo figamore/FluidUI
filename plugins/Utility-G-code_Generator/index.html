@@ -1,0 +1,1924 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Utility-G-code Generator</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg, #0c1018);
+  color: var(--text-primary, #e2e6f4);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.layout { display: flex; flex: 1; overflow: hidden; }
+.sidebar {
+  width: 300px; min-width: 280px;
+  background: var(--surface, #151c28);
+  border-right: 1px solid var(--border, #222840);
+  overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+.section {
+  border-bottom: 1px solid var(--border, #222840);
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.section-title {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-muted, #6a7898);
+  margin-bottom: 2px;
+}
+label { color: var(--text-muted, #6a7898); font-size: 12px; margin-top: 2px; }
+input[type=number], input[type=text], select {
+  width: 100%;
+  background: var(--elevated, #1a2235);
+  border: 1px solid var(--border, #222840);
+  border-radius: 4px;
+  color: var(--text-primary, #e2e6f4);
+  font-size: 13px; padding: 5px 8px; outline: none;
+}
+input:focus, select:focus { border-color: var(--accent, #f0a030); }
+select { cursor: pointer; }
+.mode-select {
+  font-size: 14px !important;
+  font-weight: 600;
+  border-color: var(--accent, #f0a030) !important;
+  padding: 8px !important;
+}
+.row2, .row3 {
+  display: grid;
+  gap: 6px;
+  align-items: end;
+}
+.row2 { grid-template-columns: 1fr 1fr; }
+.row3 { grid-template-columns: 1fr 1fr 1fr; }
+.row2 > div,
+.row3 > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.row2 label,
+.row3 label {
+  margin-top: 0;
+  line-height: 1.25;
+  min-height: 2.5em;
+  display: flex;
+  align-items: flex-end;
+}
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.main-split {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  min-height: 0;
+  overflow: hidden;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.panel-left { border-right: 1px solid var(--border, #222840); }
+.panel-header {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #6a7898);
+  background: var(--surface, #151c28);
+  border-bottom: 1px solid var(--border, #222840);
+}
+#gcode-output {
+  flex: 1; width: 100%;
+  background: var(--elevated, #1a2235);
+  border: none; outline: none; resize: none;
+  color: var(--text-primary, #e2e6f4);
+  font-family: ui-monospace, monospace;
+  font-size: 11px; line-height: 1.45;
+  padding: 10px;
+}
+.viz-wrap {
+  flex: 1;
+  position: relative;
+  background: #0a0e16;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.viz-pane {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border, #222840);
+}
+.viz-pane:last-child { border-bottom: none; }
+.viz-pane canvas {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: block;
+}
+.viz-pane-label {
+  position: absolute;
+  top: 4px; left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--text-muted, #6a7898);
+  background: rgba(12,16,24,.7);
+  padding: 1px 5px;
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 2;
+}
+.viz-legend {
+  position: absolute;
+  left: 8px; bottom: 8px;
+  font-size: 11px;
+  color: var(--text-muted, #6a7898);
+  background: rgba(12,16,24,.85);
+  border: 1px solid var(--border, #222840);
+  border-radius: 4px;
+  padding: 6px 8px;
+  pointer-events: none;
+}
+.viz-legend span { display: inline-block; width: 18px; height: 2px; vertical-align: middle; margin-right: 6px; }
+.leg-rapid { border-top: 2px dashed #64748b; height: 0; }
+.leg-cut { background: #f0a030; }
+.leg-start { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+.leg-plunge { width: 6px; height: 6px; border-radius: 50%; background: #f0a030; }
+.action-bar {
+  padding: 8px 12px;
+  background: var(--surface, #151c28);
+  border-top: 1px solid var(--border, #222840);
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+.action-btn {
+  padding: 7px 14px;
+  background: var(--elevated, #1a2235);
+  border: 1px solid var(--border, #222840);
+  color: var(--text-primary, #e2e6f4);
+  border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.action-btn:hover { border-color: var(--accent, #f0a030); }
+.action-btn:disabled { opacity: .4; cursor: default; }
+#status { font-size: 12px; color: var(--text-muted, #6a7898); flex: 1; text-align: right; }
+#status.ok { color: #22c55e; }
+#status.err { color: #ef4444; }
+.hidden { display: none !important; }
+@media (max-width: 900px) {
+  .main-split { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .panel-left { border-right: none; border-bottom: 1px solid var(--border, #222840); }
+}
+.language-section { padding-top: 8px; padding-bottom: 8px; }
+.language-section select { font-weight: 600; }
+</style>
+
+<script>
+const TOOLTIPS = {
+  fr: {
+    common: {
+      project_name: "Nom du projet, utilisé dans l'en-tête du G-code et pour nommer le fichier exporté.",
+      machine: "Identifiant de la machine (informatif), inscrit dans l'en-tête du G-code.",
+      global_units: "Unités de travail : mm (G21) ou pouces (G20). Affecte toutes les cotes saisies.",
+      plunge_percent: "Vitesse de plongée en % de l'avance de coupe (Avance). Réduit la vitesse en Z lors des descentes.",
+      startup_codes: "Codes G/M de démarrage, séparés par des espaces (ex. M7 M8 M3 G04P5). Si M3 est présent, S + Broche RPM est ajouté juste après. Chaque code est écrit sur sa propre ligne dans le G-code."
+    },
+    modes: {
+      "1": {
+        start_x: "Coin de départ (X) de la zone à surfacer, avant compensation du rayon outil.",
+        start_y: "Coin de départ (Y) de la zone à surfacer, avant compensation du rayon outil.",
+        start_z: "Altitude Z de la surface à usiner (niveau 0 de la passe de surfaçage).",
+        clearance_height: "Hauteur de dégagement en Z pour les déplacements rapides au-dessus de la pièce.",
+        tool_diameter: "Diamètre de la fraise utilisée. Sert à calculer le pas et le débordement du parcours.",
+        spindle_speed: "Vitesse de rotation broche (tr/min).",
+        feed_rate: "Vitesse d'avance en usinage (mm/min) pour les déplacements de coupe.",
+        depth_per_pass: "Profondeur retirée à chaque passe. Ne doit pas dépasser la profondeur totale.",
+        total_depth: "Profondeur totale à surfacer (cumul de toutes les passes).",
+        width_x: "Largeur (en X) de la zone à surfacer.",
+        length_y: "Longueur (en Y) de la zone à surfacer.",
+        overlap_percent: "Chevauchement entre deux passes adjacentes, en % du diamètre outil.",
+        path_type_surf: "Sens du parcours : Opposition, Avalant, ou Alterné (va-et-vient)."
+      },
+      "2": {
+        start_x: "Centre (X) du trou à réaliser par détourage.",
+        start_y: "Centre (Y) du trou à réaliser par détourage.",
+        start_z: "Altitude Z de la surface de départ, avant plongée.",
+        clearance_height: "Hauteur de dégagement en Z entre les déplacements rapides.",
+        tool_diameter: "Diamètre de la fraise. Doit être inférieur au diamètre du trou.",
+        spindle_speed: "Vitesse de rotation broche (tr/min).",
+        feed_rate: "Vitesse d'avance en usinage (mm/min).",
+        depth_per_pass: "Profondeur retirée à chaque passe de détourage.",
+        total_depth: "Profondeur totale du trou (traversant ou borgne selon le type choisi).",
+        hole_diameter: "Diamètre final du trou à obtenir.",
+        drilling_type: "Traversant (contour simple), Borgne (passes concentriques), ou Diamètre extérieur (détourage externe d'une pièce).",
+        path_type_contour: "Sens du fraisage circulaire : Opposition (G02) ou Avalant (G03).",
+        overlap_blind: "Chevauchement entre cercles concentriques successifs (mode borgne uniquement), en % du Ø outil."
+      },
+      "3": {
+        start_x: "Position X du premier trou de la matrice (coin de référence).",
+        start_y: "Position Y du premier trou de la matrice (coin de référence).",
+        start_z: "Altitude Z de la surface avant perçage.",
+        clearance_height: "Hauteur de dégagement en Z entre chaque trou et entre les passes de perçage.",
+        tool_diameter: "Diamètre du foret ou de la fraise de perçage (informatif).",
+        spindle_speed: "Vitesse de rotation broche (tr/min).",
+        feed_rate: "Vitesse d'avance en usinage (mm/min), utilisée pour la descente en Z.",
+        depth_per_pass: "Profondeur de perçage par passe (remontée au dégagement Z entre chaque passe).",
+        total_depth: "Profondeur totale de chaque trou de la matrice.",
+        num_cols: "Nombre de colonnes (trous suivant l'axe X).",
+        num_rows: "Nombre de lignes (trous suivant l'axe Y).",
+        spacing_x: "Entraxe entre deux colonnes consécutives (pas en X).",
+        spacing_y: "Entraxe entre deux lignes consécutives (pas en Y)."
+      },
+      "4": {
+        start_x: "Position X de l'angle à traiter (coin de la pièce).",
+        start_y: "Position Y de l'angle à traiter (coin de la pièce).",
+        start_z: "Altitude Z de la surface avant plongée.",
+        clearance_height: "Hauteur de dégagement en Z entre les passes.",
+        tool_diameter: "Diamètre de la fraise. Ajouté au rayon programmé pour définir le rayon réel de l'arc.",
+        spindle_speed: "Vitesse de rotation broche (tr/min).",
+        feed_rate: "Vitesse d'avance en usinage (mm/min).",
+        depth_per_pass: "Profondeur retirée à chaque passe.",
+        total_depth: "Profondeur totale de l'usinage du rayon.",
+        radius: "Rayon programmé (rayon de la pièce finie, hors compensation outil).",
+        corner_type: "Coin de la pièce à traiter : Avant/Arrière x Gauche/Droit.",
+        path_type_corner: "Sens du fraisage : Opposition (G02) ou Avalant (G03)."
+      },
+      "5": {
+        start_x: "Centre (X) du trou oblong.",
+        start_y: "Centre (Y) du trou oblong.",
+        start_z: "Altitude Z de la surface avant plongée.",
+        clearance_height: "Hauteur de dégagement en Z.",
+        tool_diameter: "Diamètre de la fraise. Doit être inférieur ou égal à la largeur du trou oblong.",
+        spindle_speed: "Vitesse de rotation broche (tr/min).",
+        feed_rate: "Vitesse d'avance en usinage (mm/min).",
+        depth_per_pass: "Profondeur retirée à chaque passe.",
+        total_depth: "Profondeur totale du trou oblong.",
+        ob_length_x: "Longueur totale du trou oblong suivant l'axe X (entraxe + largeur).",
+        ob_length_y: "Longueur totale du trou oblong suivant l'axe Y (si orientation verticale).",
+        ob_width: "Largeur du trou oblong (doit être ≥ Ø outil).",
+        path_type_oblong: "Sens du parcours : Opposition (G02) ou Avalant (G03)."
+      },
+      "6": {
+        start_x: "Centre (X) de l'alésage ou de la pièce à fileter.",
+        start_y: "Centre (Y) de l'alésage ou de la pièce à fileter.",
+        start_z: "Altitude Z du plan de départ du filetage (face supérieure).",
+        clearance_height: "Hauteur de dégagement en Z avant/après le filetage.",
+        tool_diameter: "Diamètre de la fraise à fileter.",
+        spindle_speed: "Vitesse de rotation broche (tr/min).",
+        feed_rate: "Vitesse d'avance en usinage (mm/min).",
+        depth_per_pass: "Profondeur radiale retirée à chaque passe d'approche.",
+        total_depth: "Profondeur radiale totale du filet (pénétration cumulée).",
+        th_hole_diameter: "Diamètre nominal du trou (écrou) ou de la pièce (vis) à fileter.",
+        thread_type: "Écrou (filetage interne) ou Vis (filetage externe).",
+        path_type_thread: "Sens d'hélice du filet : Droite (G02) ou Gauche (G03).",
+        thread_pitch: "Pas du filet (distance entre deux filets consécutifs, en mm).",
+        thread_number: "Nombre de filets (tours d'hélice) à réaliser."
+      }
+    }
+  },
+  en: {
+    common: {
+      project_name: "Project name, used in the G-code header and as the exported file name.",
+      machine: "Machine identifier (informational), written in the G-code header.",
+      global_units: "Working units: mm (G21) or inches (G20). Affects all entered dimensions.",
+      plunge_percent: "Plunge speed as a % of the feed rate. Slows down Z descents.",
+      startup_codes: "Startup G/M codes, space-separated (e.g. M7 M8 M3 G04P5). If M3 is present, S + Spindle RPM is inserted right after it. Each code is written on its own line in the G-code."
+    },
+    modes: {
+      "1": {
+        start_x: "Starting corner (X) of the area to surface, before tool radius compensation.",
+        start_y: "Starting corner (Y) of the area to surface, before tool radius compensation.",
+        start_z: "Z height of the surface to machine (zero level of the surfacing pass).",
+        clearance_height: "Z clearance height for rapid moves above the part.",
+        tool_diameter: "Diameter of the mill used. Used to compute stepover and path overshoot.",
+        spindle_speed: "Spindle rotation speed (RPM).",
+        feed_rate: "Cutting feed rate (mm/min) for machining moves.",
+        depth_per_pass: "Depth removed per pass. Must not exceed the total depth.",
+        total_depth: "Total depth to surface (sum of all passes).",
+        width_x: "Width (X) of the area to surface.",
+        length_y: "Length (Y) of the area to surface.",
+        overlap_percent: "Overlap between adjacent passes, as a % of the tool diameter.",
+        path_type_surf: "Path direction: Conventional, Climb, or Alternating (zig-zag)."
+      },
+      "2": {
+        start_x: "Center (X) of the hole to make by contour drilling.",
+        start_y: "Center (Y) of the hole to make by contour drilling.",
+        start_z: "Z height of the starting surface, before plunging.",
+        clearance_height: "Z clearance height between rapid moves.",
+        tool_diameter: "Mill diameter. Must be smaller than the hole diameter.",
+        spindle_speed: "Spindle rotation speed (RPM).",
+        feed_rate: "Cutting feed rate (mm/min).",
+        depth_per_pass: "Depth removed per contouring pass.",
+        total_depth: "Total hole depth (through or blind, per the selected type).",
+        hole_diameter: "Final diameter of the hole to obtain.",
+        drilling_type: "Through hole (simple contour), Blind hole (concentric passes), or Outer diameter (external contouring of a part).",
+        path_type_contour: "Circular milling direction: Conventional (G02) or Climb (G03).",
+        overlap_blind: "Overlap between successive concentric circles (blind mode only), as a % of tool Ø."
+      },
+      "3": {
+        start_x: "X position of the first hole in the matrix (reference corner).",
+        start_y: "Y position of the first hole in the matrix (reference corner).",
+        start_z: "Z height of the surface before drilling.",
+        clearance_height: "Z clearance height between each hole and between drilling passes.",
+        tool_diameter: "Diameter of the drill or mill used (informational).",
+        spindle_speed: "Spindle rotation speed (RPM).",
+        feed_rate: "Cutting feed rate (mm/min), used for the Z descent.",
+        depth_per_pass: "Drilling depth per pass (retract to Z clearance between each).",
+        total_depth: "Total depth of each hole in the matrix.",
+        num_cols: "Number of columns (holes along X).",
+        num_rows: "Number of rows (holes along Y).",
+        spacing_x: "Spacing between two consecutive columns (X pitch).",
+        spacing_y: "Spacing between two consecutive rows (Y pitch)."
+      },
+      "4": {
+        start_x: "X position of the corner to machine (part corner).",
+        start_y: "Y position of the corner to machine (part corner).",
+        start_z: "Z height of the surface before plunging.",
+        clearance_height: "Z clearance height between passes.",
+        tool_diameter: "Mill diameter. Added to the programmed radius to get the actual arc radius.",
+        spindle_speed: "Spindle rotation speed (RPM).",
+        feed_rate: "Cutting feed rate (mm/min).",
+        depth_per_pass: "Depth removed per pass.",
+        total_depth: "Total depth of the corner radius machining.",
+        radius: "Programmed radius (finished part radius, excluding tool compensation).",
+        corner_type: "Corner of the part to machine: Front/Rear x Left/Right.",
+        path_type_corner: "Milling direction: Conventional (G02) or Climb (G03)."
+      },
+      "5": {
+        start_x: "Center (X) of the oblong hole.",
+        start_y: "Center (Y) of the oblong hole.",
+        start_z: "Z height of the surface before plunging.",
+        clearance_height: "Z clearance height.",
+        tool_diameter: "Mill diameter. Must be less than or equal to the slot width.",
+        spindle_speed: "Spindle rotation speed (RPM).",
+        feed_rate: "Cutting feed rate (mm/min).",
+        depth_per_pass: "Depth removed per pass.",
+        total_depth: "Total depth of the oblong hole.",
+        ob_length_x: "Total length of the slot along X (center distance + width).",
+        ob_length_y: "Total length of the slot along Y (if vertical orientation).",
+        ob_width: "Width of the slot (must be ≥ tool Ø).",
+        path_type_oblong: "Path direction: Conventional (G02) or Climb (G03)."
+      },
+      "6": {
+        start_x: "Center (X) of the bore or part to be threaded.",
+        start_y: "Center (Y) of the bore or part to be threaded.",
+        start_z: "Z height of the threading start plane (top face).",
+        clearance_height: "Z clearance height before/after threading.",
+        tool_diameter: "Diameter of the thread milling cutter.",
+        spindle_speed: "Spindle rotation speed (RPM).",
+        feed_rate: "Cutting feed rate (mm/min).",
+        depth_per_pass: "Radial depth removed per approach pass.",
+        total_depth: "Total radial thread depth (cumulative penetration).",
+        th_hole_diameter: "Nominal diameter of the hole (nut) or the part (screw) to thread.",
+        thread_type: "Nut (internal thread) or Screw (external thread).",
+        path_type_thread: "Thread helix direction: Right (G02) or Left (G03).",
+        thread_pitch: "Thread pitch (distance between two consecutive threads, in mm).",
+        thread_number: "Number of thread turns (helix revolutions) to make."
+      }
+    }
+  }
+};
+
+const I18N = {
+  fr: {
+    language: "Langue",
+    operationMode: "Mode d'opération",
+    project: "Projet (commun)",
+    projectName: "Nom projet",
+    machine: "Machine",
+    units: "Unités",
+    plungePercent: "Plongée %",
+    startupCodes: "Codes démarrage",
+    startPosition: "Position départ (par mode)",
+    startX: "Départ X",
+    startY: "Départ Y",
+    startZ: "Départ Z",
+    clearance: "Dégagement Z",
+    toolAndSpeeds: "Outil & vitesses (par mode)",
+    toolDiameter: "Ø outil (mm)",
+    spindleSpeed: "Broche RPM",
+    feedRate: "Avance (mm/min)",
+    depthPerPass: "Prof. / passe",
+    totalDepth: "Prof. totale (mm)",
+    surfacing: "Surfaçage",
+    contourDrilling: "Perçage détourage",
+    matrixDrilling: "Matrice RAST",
+    cornerRadius: "Rayon 90°",
+    oblongHole: "Trou oblong",
+    threading: "Filetage",
+    widthX: "Largeur X",
+    lengthY: "Longueur Y",
+    lengthX: "Longueur X",
+    overlapPercent: "Chevauchement %",
+    pathType: "Type de parcours",
+    holeDiameter: "Ø trou (mm)",
+    drillingType: "Type perçage",
+    path: "Parcours",
+    blindOverlap: "Chevauchement % (borgne)",
+    columns: "Colonnes X",
+    rows: "Lignes Y",
+    spacingX: "Pas X",
+    spacingY: "Pas Y",
+    radius: "Rayon (mm)",
+    corner: "Coin",
+    width: "Largeur (mm)",
+    threadHoleDiameter: "Ø trou / pièce (mm)",
+    type: "Type",
+    direction: "Sens",
+    threadPitch: "Pas filet",
+    threadCount: "Nb filets",
+    gcode: "G-code",
+    preview2d: "2D (XY)",
+    start: "Départ",
+    rapidG0: "Rapide G0",
+    cuttingG1G2G3: "Usinage G1/G2/G3",
+    verticalPlunge: "Plongée verticale",
+    openViewer: "Ouvrir dans le viewer",
+    opSurfacing: "1 – Surfaçage",
+    opContour: "2 – Perçages par détourage",
+    opMatrix: "3 – Perçages matrice (RAST)",
+    opCorner: "4 – Rayon sur 90°",
+    opOblong: "5 – Trou oblong",
+    opThread: "6 – Filetage",
+    opposition: "Opposition",
+    climb: "Avalant",
+    alternate: "Alterné",
+    throughHole: "Trou traversant (contour)",
+    blindHole: "Trou borgne",
+    outerDiameter: "Diamètre extérieur",
+    oppositionG02: "Opposition (G02)",
+    climbG03: "Avalant (G03)",
+    frontLeft: "Avant Gauche (AVG)",
+    frontRight: "Avant Droit (AVD)",
+    rearRight: "Arrière Droit (ARD)",
+    rearLeft: "Arrière Gauche (ARG)",
+    internalNut: "Écrou (interne)",
+    externalScrew: "Vis (externe)",
+    rightG02: "Droite (G02)",
+    leftG03: "Gauche (G03)",
+    previewEmpty: "Génère un G-code pour l’aperçu",
+    settingsLoaded: "Réglages chargés",
+    gcodeGeneratedPreviewOk: "G-code généré · aperçu OK",
+    gcodeGeneratedSettingsError: "G-code généré · settings ÉCHEC",
+    generateFirst: "Génère d’abord le G-code",
+    saving: "Enregistrement…",
+    loadedInViewer: "Chargé dans le viewer",
+    savedOpenFiles: "Sauvé : {path} — ouvre dans Files",
+    error: "Erreur : {message}",
+    holeToolError: "Ø trou > Ø outil",
+    pitchThreadError: "Pas et nb filets > 0",
+    depthPassError: "Profondeur/passe > profondeur totale",
+    overlapRangeError: "Chevauchement 0–99%",
+    holeMustBeLarger: "Ø trou doit être > Ø outil",
+    colsRowsError: "Nb colonnes/lignes >= 1",
+    radiusToolError: "Rayon et Ø outil > 0",
+    widthToolError: "Largeur >= Ø outil",
+    unknownMode: "Mode inconnu",
+    holeToolError: "Ø trou > Ø outil",
+    pitchThreadError: "Pas et nb filets > 0"
+  },
+  en: {
+    language: "Language",
+    operationMode: "Operation mode",
+    project: "Project (common)",
+    projectName: "Project name",
+    machine: "Machine",
+    units: "Units",
+    plungePercent: "Plunge %",
+    startupCodes: "Startup codes",
+    startPosition: "Start position (per mode)",
+    startX: "Start X",
+    startY: "Start Y",
+    startZ: "Start Z",
+    clearance: "Z clearance",
+    toolAndSpeeds: "Tool & speeds (per mode)",
+    toolDiameter: "Tool diameter (mm)",
+    spindleSpeed: "Spindle RPM",
+    feedRate: "Feed rate (mm/min)",
+    depthPerPass: "Depth / pass",
+    totalDepth: "Total depth (mm)",
+    surfacing: "Surfacing",
+    contourDrilling: "Contour drilling",
+    matrixDrilling: "RAST matrix",
+    cornerRadius: "90° corner radius",
+    oblongHole: "Slot / oblong hole",
+    threading: "Threading",
+    widthX: "Width X",
+    lengthY: "Length Y",
+    lengthX: "Length X",
+    overlapPercent: "Overlap %",
+    pathType: "Path type",
+    holeDiameter: "Hole Ø (mm)",
+    drillingType: "Drilling type",
+    path: "Path",
+    blindOverlap: "Overlap % (blind)",
+    columns: "Columns X",
+    rows: "Rows Y",
+    spacingX: "Spacing X",
+    spacingY: "Spacing Y",
+    radius: "Radius (mm)",
+    corner: "Corner",
+    width: "Width (mm)",
+    threadHoleDiameter: "Hole / part Ø (mm)",
+    type: "Type",
+    direction: "Direction",
+    threadPitch: "Thread pitch",
+    threadCount: "Thread count",
+    gcode: "G-code",
+    preview2d: "2D (XY)",
+    start: "Start",
+    rapidG0: "Rapid G0",
+    cuttingG1G2G3: "Cutting G1/G2/G3",
+    verticalPlunge: "Vertical plunge",
+    openViewer: "Open in viewer",
+    opSurfacing: "1 – Surfacing",
+    opContour: "2 – Contour drilling",
+    opMatrix: "3 – Matrix drilling (RAST)",
+    opCorner: "4 – 90° corner radius",
+    opOblong: "5 – Slot / oblong hole",
+    opThread: "6 – Threading",
+    opposition: "Conventional",
+    climb: "Climb",
+    alternate: "Alternating",
+    throughHole: "Through hole (contour)",
+    blindHole: "Blind hole",
+    outerDiameter: "Outer diameter",
+    oppositionG02: "Conventional (G02)",
+    climbG03: "Climb (G03)",
+    frontLeft: "Front Left (AVG)",
+    frontRight: "Front Right (AVD)",
+    rearRight: "Rear Right (ARD)",
+    rearLeft: "Rear Left (ARG)",
+    internalNut: "Nut (internal)",
+    externalScrew: "Screw (external)",
+    rightG02: "Right (G02)",
+    leftG03: "Left (G03)",
+    previewEmpty: "Generate G-code for the preview",
+    settingsLoaded: "Settings loaded",
+    gcodeGeneratedPreviewOk: "G-code generated · preview OK",
+    gcodeGeneratedSettingsError: "G-code generated · settings FAILED",
+    generateFirst: "Generate the G-code first",
+    saving: "Saving…",
+    loadedInViewer: "Loaded in viewer",
+    savedOpenFiles: "Saved: {path} — open it in Files",
+    error: "Error: {message}",
+    holeToolError: "Hole Ø > tool Ø",
+    pitchThreadError: "Pitch and thread count > 0",
+    depthPassError: "Depth/pass > total depth",
+    overlapRangeError: "Overlap must be 0–99%",
+    holeMustBeLarger: "Hole Ø must be > tool Ø",
+    colsRowsError: "Columns/rows >= 1",
+    radiusToolError: "Radius and tool Ø must be > 0",
+    widthToolError: "Width must be >= tool Ø",
+    unknownMode: "Unknown mode",
+    holeToolError: "Hole Ø > tool Ø",
+    pitchThreadError: "Pitch and thread count > 0"
+  }
+};
+
+function getLanguage() {
+  return (typeof settingsCache !== "undefined" &&
+          (settingsCache.language === "en" || settingsCache.language === "fr"))
+    ? settingsCache.language : "fr";
+}
+
+function tr(key, vars = {}) {
+  const lang = getLanguage();
+  let text = I18N[lang]?.[key] ?? I18N.fr[key] ?? key;
+  Object.entries(vars).forEach(([k, v]) => {
+    text = text.replaceAll("{" + k + "}", String(v));
+  });
+  return text;
+}
+
+function isInches() {
+  return (document.getElementById('global_units')?.value || 'mm') === 'in';
+}
+
+function unitize(text) {
+  if (!isInches() || text == null) return text;
+  return String(text)
+    .replace(/\(mm\/min\)/gi, '(in/min)')
+    .replace(/mm\/min/gi, 'in/min')
+    .replace(/\(mm\)/gi, '(in)')
+    .replace(/\ben mm\b/gi, 'en in')
+    .replace(/\bin mm\b/gi, 'in inches')
+    .replace(/, mm\b/gi, ', in')
+    .replace(/\bmm\b/gi, 'in');
+}
+
+function applyLanguage() {
+  const lang = getLanguage();
+  document.documentElement.lang = lang;
+  const selector = document.getElementById("language-select");
+  if (selector) selector.value = lang;
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.dataset.i18n;
+    if (I18N[lang]?.[key]) el.textContent = unitize(I18N[lang][key]);
+  });
+  applyTooltips();
+}
+
+function applyTooltips() {
+  const lang = getLanguage();
+  const pack = TOOLTIPS[lang] || TOOLTIPS.fr;
+  const op = (document.getElementById('operation')?.value) || '1';
+  const modeTips = pack.modes[op] || {};
+  const commonTips = pack.common || {};
+  for (const id of Object.keys(commonTips)) {
+    const el = document.getElementById(id);
+    if (el) el.title = unitize(commonTips[id]);
+  }
+  for (const id of Object.keys(modeTips)) {
+    const el = document.getElementById(id);
+    if (el) el.title = unitize(modeTips[id]);
+  }
+}
+
+async function changeLanguage(lang) {
+  settingsCache.language = (lang === "en") ? "en" : "fr";
+  applyLanguage();
+  try { await saveSettings(); } catch (_) {}
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const selector = document.getElementById("language-select");
+  if (selector) {
+    selector.addEventListener("change", () => changeLanguage(selector.value));
+  }
+  applyLanguage();
+});
+</script>
+</head>
+<body>
+<div class="layout">
+  <div class="sidebar">
+    <div class="section language-section">
+      <div class="section-title" data-i18n="language">Langue</div>
+      <select id="language-select" aria-label="Language">
+        <option value="fr">Français</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+    <div class="section">
+      <div class="section-title" data-i18n="operationMode">Mode d'opération</div>
+      <select id="operation" class="mode-select">
+        <option value="1" data-i18n="opSurfacing">1 – Surfaçage</option>
+        <option value="2" data-i18n="opContour">2 – Perçages par détourage</option>
+        <option value="3" data-i18n="opMatrix">3 – Perçages matrice (RAST)</option>
+        <option value="4" data-i18n="opCorner">4 – Rayon sur 90°</option>
+        <option value="5" data-i18n="opOblong">5 – Trou oblong</option>
+        <option value="6" data-i18n="opThread">6 – Filetage</option>
+      </select>
+    </div>
+    <div class="section">
+      <div class="section-title" data-i18n="project">Projet (commun)</div>
+      <div class="row2">
+        <div>
+          <label data-i18n="projectName">Nom projet</label>
+          <input type="text" id="project_name" value="test">
+        </div>
+        <div>
+          <label data-i18n="machine">Machine</label>
+          <input type="text" id="machine" value="CNC_450x800">
+        </div>
+      </div>
+      <label data-i18n="startupCodes">Codes démarrage</label>
+      <input type="text" id="startup_codes" value="M7 M8 M3 G04P5">
+      <div class="row2">
+        <div>
+          <label data-i18n="units">Unités</label>
+          <select id="global_units">
+            <option value="mm">mm (G21)</option>
+            <option value="in">in (G20)</option>
+          </select>
+        </div>
+        <div>
+          <label data-i18n="plungePercent">Plongée %</label>
+          <input type="number" id="plunge_percent" value="50" min="1" max="100" step="1">
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title" data-i18n="startPosition">Position départ (par mode)</div>
+      <div class="row2">
+        <div><label data-i18n="startX">Start X</label><input type="number" id="start_x" value="0" step="0.1"></div>
+        <div><label data-i18n="startY">Start Y</label><input type="number" id="start_y" value="0" step="0.1"></div>
+      </div>
+      <div class="row2">
+        <div><label data-i18n="startZ">Start Z</label><input type="number" id="start_z" value="0" step="0.1"></div>
+        <div><label data-i18n="clearance">Dégagement Z</label><input type="number" id="clearance_height" value="5" min="0.1" step="0.1"></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title" data-i18n="toolAndSpeeds">Outil & vitesses (par mode)</div>
+      <div class="row2">
+        <div><label data-i18n="feedRate">Avance (mm/min)</label><input type="number" id="feed_rate" value="1800" min="1" step="50"></div>
+        <div><label data-i18n="spindleSpeed">Broche RPM</label><input type="number" id="spindle_speed" value="1000" min="0" step="100"></div>
+      </div>
+      <div class="row3">
+        <div><label data-i18n="toolDiameter">Ø outil (mm)</label><input type="number" id="tool_diameter" value="10" min="0.1" step="0.1"></div>
+        <div><label data-i18n="depthPerPass">Prof. / passe</label><input type="number" id="depth_per_pass" value="1" min="0.01" step="0.1"></div>
+        <div><label data-i18n="totalDepth">Prof. totale</label><input type="number" id="total_depth" value="2" min="0.01" step="0.1"></div>
+      </div>
+    </div>
+    <div class="section mode-panel" id="panel-1">
+      <div class="section-title" data-i18n="surfacing">Surfaçage</div>
+      <div class="row2">
+        <div><label data-i18n="widthX">Largeur X</label><input type="number" id="width_x" value="100" min="0.1" step="0.1"></div>
+        <div><label data-i18n="lengthY">Longueur Y</label><input type="number" id="length_y" value="100" min="0.1" step="0.1"></div>
+      </div>
+      <div class="row2">
+        <div>
+          <label data-i18n="overlapPercent">Chevauchement %</label>
+          <input type="number" id="overlap_percent" value="50" min="0" max="99" step="1">
+        </div>
+        <div>
+          <label data-i18n="pathType">Type de parcours</label>
+          <select id="path_type_surf">
+            <option value="conventional" data-i18n="opposition">Opposition</option>
+            <option value="climb" data-i18n="climb">Avalant</option>
+            <option value="alternate" data-i18n="alternate">Alterné</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="section mode-panel hidden" id="panel-2">
+      <div class="section-title" data-i18n="contourDrilling">Perçage détourage</div>
+      <div class="row2">
+        <div>
+          <label data-i18n="holeDiameter">Ø trou (mm)</label>
+          <input type="number" id="hole_diameter" value="30" min="0.1" step="0.1">
+        </div>
+        <div>
+          <label data-i18n="drillingType">Type perçage</label>
+          <select id="drilling_type">
+            <option value="contour" data-i18n="throughHole">Trou traversant (contour)</option>
+            <option value="blind" data-i18n="blindHole">Trou borgne</option>
+            <option value="outer" data-i18n="outerDiameter">Diamètre extérieur</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div>
+          <label data-i18n="blindOverlap">Chevauchement % (borgne)</label>
+          <input type="number" id="overlap_blind" value="50" min="0" max="99" step="1">
+        </div>
+        <div>
+          <label data-i18n="path">Parcours</label>
+          <select id="path_type_contour">
+            <option value="conventional" data-i18n="oppositionG02">Opposition (G02)</option>
+            <option value="climb" data-i18n="climbG03">Avalant (G03)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="section mode-panel hidden" id="panel-3">
+      <div class="section-title" data-i18n="matrixDrilling">Matrice RAST</div>
+      <div class="row2">
+        <div><label data-i18n="columns">Colonnes X</label><input type="number" id="num_cols" value="3" min="1" step="1"></div>
+        <div><label data-i18n="rows">Lignes Y</label><input type="number" id="num_rows" value="3" min="1" step="1"></div>
+      </div>
+      <div class="row2">
+        <div><label data-i18n="spacingX">Pas X</label><input type="number" id="spacing_x" value="10" min="0" step="0.1"></div>
+        <div><label data-i18n="spacingY">Pas Y</label><input type="number" id="spacing_y" value="10" min="0" step="0.1"></div>
+      </div>
+    </div>
+    <div class="section mode-panel hidden" id="panel-4">
+      <div class="section-title" data-i18n="cornerRadius">Rayon 90°</div>
+      <div class="row2">
+        <div>
+          <label data-i18n="radius">Rayon (mm)</label>
+          <input type="number" id="radius" value="10" min="0.1" step="0.1">
+        </div>
+        <div>
+          <label data-i18n="corner">Coin</label>
+          <select id="corner_type">
+            <option value="front_left" data-i18n="frontLeft">Avant Gauche (AVG)</option>
+            <option value="front_right" data-i18n="frontRight">Avant Droit (AVD)</option>
+            <option value="rear_right" data-i18n="rearRight">Arrière Droit (ARD)</option>
+            <option value="rear_left" data-i18n="rearLeft">Arrière Gauche (ARG)</option>
+          </select>
+        </div>
+      </div>
+      <label data-i18n="path">Parcours</label>
+      <select id="path_type_corner">
+        <option value="conventional" data-i18n="opposition">Opposition</option>
+        <option value="climb" data-i18n="climb">Avalant</option>
+      </select>
+    </div>
+    <div class="section mode-panel hidden" id="panel-5">
+      <div class="section-title" data-i18n="oblongHole">Trou oblong</div>
+      <div class="row3">
+        <div><label data-i18n="lengthX">Longueur X</label><input type="number" id="ob_length_x" value="20" min="0" step="0.1"></div>
+        <div><label data-i18n="lengthY">Longueur Y</label><input type="number" id="ob_length_y" value="20" min="0" step="0.1"></div>
+        <div><label data-i18n="width">Largeur (mm)</label><input type="number" id="ob_width" value="10" min="0.1" step="0.1"></div>
+      </div>
+      <label data-i18n="path">Parcours</label>
+      <select id="path_type_oblong">
+        <option value="conventional" data-i18n="opposition">Opposition</option>
+        <option value="climb" data-i18n="climb">Avalant</option>
+      </select>
+    </div>
+    <div class="section mode-panel hidden" id="panel-6">
+      <div class="section-title" data-i18n="threading">Filetage</div>
+      <div class="row3">
+        <div>
+          <label data-i18n="threadHoleDiameter">Ø trou / pièce</label>
+          <input type="number" id="th_hole_diameter" value="30" min="0.1" step="0.1">
+        </div>
+        <div>
+          <label data-i18n="threadPitch">Pas filet</label>
+          <input type="number" id="thread_pitch" value="1.5" min="0.01" step="0.05">
+        </div>
+        <div>
+          <label data-i18n="threadCount">Nb filets</label>
+          <input type="number" id="thread_number" value="6" min="1" step="1">
+        </div>
+      </div>
+      <div class="row2">
+        <div>
+          <label data-i18n="type">Type</label>
+          <select id="thread_type">
+            <option value="nut_internal" data-i18n="internalNut">Écrou (interne)</option>
+            <option value="screw_external" data-i18n="externalScrew">Vis (externe)</option>
+          </select>
+        </div>
+        <div>
+          <label data-i18n="direction">Sens</label>
+          <select id="path_type_thread">
+            <option value="right" data-i18n="rightG02">Droite (G02)</option>
+            <option value="left" data-i18n="leftG03">Gauche (G03)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="main-split">
+      <div class="panel panel-left">
+        <div class="panel-header" data-i18n="gcode">G-code</div>
+        <textarea id="gcode-output" readonly spellcheck="false" placeholder="Le G-code apparaîtra ici..."></textarea>
+      </div>
+      <div class="panel">
+        <div class="panel-header" data-i18n="preview2d">2D (XY)</div>
+        <div class="viz-wrap">
+          <div class="viz-pane" id="viz-pane-xz">
+            <div class="viz-pane-label">XZ</div>
+            <canvas id="preview-canvas-xz"></canvas>
+          </div>
+          <div class="viz-pane" id="viz-pane-xy">
+            <div class="viz-pane-label">XY</div>
+            <canvas id="preview-canvas-xy"></canvas>
+          </div>
+          <div class="viz-legend">
+            <div><span class="leg-start"></span> <span data-i18n="start">Départ</span></div>
+            <div><span class="leg-rapid"></span> <span data-i18n="rapidG0">Rapide G0</span></div>
+            <div><span class="leg-cut"></span> <span data-i18n="cuttingG1G2G3">Usinage G1/G2/G3</span></div>
+            <div><span class="leg-plunge"></span> <span data-i18n="verticalPlunge">Plongée verticale</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="action-bar">
+      <button class="action-btn" id="open-btn" onclick="openInViewer()" disabled data-i18n="openViewer">Ouvrir dans le viewer</button>
+      <span id="status"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========== FigUI bridge ========== */
+let msgId = 0;
+const pending = {};
+function call(method, params) {
+  return new Promise((resolve, reject) => {
+    const id = String(++msgId);
+    pending[id] = { resolve, reject };
+    window.parent.postMessage({ type: 'fluid-request', id, method, params: params ?? {} }, '*');
+  });
+}
+window.addEventListener('message', e => {
+  if (e.data?.type === 'fluid-response') {
+    const p = pending[e.data.id];
+    if (p) {
+      delete pending[e.data.id];
+      e.data.error ? p.reject(new Error(e.data.error)) : p.resolve(e.data.result);
+    }
+  }
+});
+
+let generatedCode = '';
+
+function setStatus(msg, cls) {
+  const el = document.getElementById('status');
+  el.textContent = msg || '';
+  el.className = cls || '';
+}
+function num(id, def) {
+  const el = document.getElementById(id);
+  if (!el) return def;
+  const v = parseFloat(el.value);
+  return Number.isFinite(v) ? v : def;
+}
+function str(id) {
+  const el = document.getElementById(id);
+  return el ? (el.value || '').trim() : '';
+}
+function fmt(v) { return Number(v).toFixed(3); }
+function showModePanel(op) {
+  document.querySelectorAll('.mode-panel').forEach(el => el.classList.add('hidden'));
+  const panel = document.getElementById('panel-' + op);
+  if (panel) panel.classList.remove('hidden');
+}
+
+/* ========== Conversion mm ↔ in ========== */
+const MM_PER_IN = 25.4;
+const DIMENSION_HTML_IDS = [
+  'start_x', 'start_y', 'start_z', 'clearance_height',
+  'tool_diameter', 'feed_rate', 'depth_per_pass', 'total_depth',
+  'width_x', 'length_y', 'hole_diameter', 'spacing_x', 'spacing_y',
+  'radius', 'ob_length_x', 'ob_length_y', 'ob_width',
+  'th_hole_diameter', 'thread_pitch'
+];
+const DIMENSION_JSON_KEYS = new Set([
+  'start_x', 'start_y', 'start_z', 'clearance_height',
+  'tool_diameter', 'feed_rate', 'depth_per_pass', 'total_depth',
+  'width_x', 'length_y', 'hole_diameter', 'spacing_x', 'spacing_y',
+  'radius', 'length_x', 'width', 'thread_pitch'
+]);
+let lastUnits = 'mm';
+
+function roundConverted(n, toUnits) {
+  if (!Number.isFinite(n)) return n;
+
+  if (toUnits === 'in') {
+    // 4 décimales
+    return Math.round(n * 1e4) / 1e4;
+  }
+
+  // mm — 3 décimales, avec correction d'aller-retour
+  // Erreur max due à 4 digits en pouces : 0.00005 × 25.4 ≈ 0.00127 mm
+  const SNAP = 0.0013;
+  for (let d = 0; d <= 3; d++) {
+    const f = Math.pow(10, d);
+    const candidate = Math.round(n * f) / f;
+    if (Math.abs(n - candidate) <= SNAP) {
+      return Math.round(candidate * 1e3) / 1e3;
+    }
+  }
+  return Math.round(n * 1e3) / 1e3;
+}
+
+function convertAllDimensions(factor, toUnits) {
+  for (const id of DIMENSION_HTML_IDS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const v = parseFloat(el.value);
+    if (!Number.isFinite(v)) continue;
+    el.value = roundConverted(v * factor, toUnits);
+  }
+  for (const mk of [
+    'surfacing', 'contour_drilling', 'matrix_drilling',
+    'corner_radius', 'oblong_hole', 'threading'
+  ]) {
+    const section = settingsCache[mk];
+    if (!section || typeof section !== 'object') continue;
+    for (const key of Object.keys(section)) {
+      if (!DIMENSION_JSON_KEYS.has(key)) continue;
+      const v = section[key];
+      if (typeof v === 'number' && Number.isFinite(v)) {
+        section[key] = roundConverted(v * factor, toUnits);
+      }
+    }
+  }
+}
+
+function applyUnitsChange(newUnits) {
+  const oldUnits = lastUnits;
+  if (newUnits === oldUnits) {
+    applyLanguage();
+    return;
+  }
+  captureMode(str('operation') || '1');
+  let factor = 1;
+  if (oldUnits === 'mm' && newUnits === 'in') factor = 1 / MM_PER_IN;
+  else if (oldUnits === 'in' && newUnits === 'mm') factor = MM_PER_IN;
+  if (factor !== 1) {
+    convertAllDimensions(factor, newUnits);
+    const op = str('operation') || '1';
+    const map = MODE_MAP[op];
+    if (map && settingsCache[map.key]) writeModeToForm(op, settingsCache[map.key]);
+  }
+  lastUnits = newUnits;
+  settingsCache.global_units = newUnits;
+  applyLanguage();
+}
+
+/* ========== Preview 2D ========== */
+function parseWord(line, letter) {
+  const re = new RegExp(letter + '([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)', 'i');
+  const m = line.match(re);
+  return m ? parseFloat(m[1]) : null;
+}
+
+function parseGCodePaths(gcode) {
+  const segs = [];
+  let x = 0, y = 0, z = 0;
+  let abs = true;
+  let startSet = false;
+  let startX = 0, startY = 0, startZ = 0;
+  const lines = String(gcode || '').split(/\r?\n/);
+  const plunges = [];
+
+  function toAbs(nx, ny, nz) {
+    return {
+      x: nx == null ? x : (abs ? nx : x + nx),
+      y: ny == null ? y : (abs ? ny : y + ny),
+      z: nz == null ? z : (abs ? nz : z + nz)
+    };
+  }
+  function addLine(x0, y0, z0, x1, y1, z1, rapid) {
+    if (x0 === x1 && y0 === y1 && z0 === z1) return;
+    segs.push({ type: rapid ? 'rapid' : 'cut', x0, y0, z0, x1, y1, z1 });
+    if (!rapid && x0 === x1 && y0 === y1 && z0 !== z1) {
+      plunges.push({ x: x1, y: y1, z: z1 });
+    }
+  }
+  function addArc(x0, y0, z0, x1, y1, z1, i, j, cw) {
+    const cx = x0 + (i || 0);
+    const cy = y0 + (j || 0);
+    let a0 = Math.atan2(y0 - cy, x0 - cx);
+    let a1 = Math.atan2(y1 - cy, x1 - cx);
+    let da = a1 - a0;
+    if (cw) {
+      if (da > 0) da -= 2 * Math.PI;
+      if (Math.abs(da) < 1e-9) da = -2 * Math.PI;
+    } else {
+      if (da < 0) da += 2 * Math.PI;
+      if (Math.abs(da) < 1e-9) da = 2 * Math.PI;
+    }
+    const r = Math.hypot(x0 - cx, y0 - cy) || Math.hypot(x1 - cx, y1 - cy);
+    const n = Math.max(8, Math.min(72, Math.ceil(Math.abs(da) / (Math.PI / 24))));
+    let px = x0, py = y0, pz = z0;
+    for (let k = 1; k <= n; k++) {
+      const a = a0 + da * (k / n);
+      const qx = cx + r * Math.cos(a);
+      const qy = cy + r * Math.sin(a);
+      const qz = z0 + (z1 - z0) * (k / n);
+      segs.push({ type: 'cut', x0: px, y0: py, z0: pz, x1: qx, y1: qy, z1: qz });
+      px = qx; py = qy; pz = qz;
+    }
+  }
+
+  for (let raw of lines) {
+    let line = raw.replace(/;.*$/, '').replace(/\(.*?\)/g, '').trim();
+    if (!line) continue;
+    if (/^G90\b/i.test(line)) { abs = true; continue; }
+    if (/^G91\b/i.test(line)) { abs = false; continue; }
+    const gMatch = line.match(/\bG0*(\d+)\b/i);
+    const g = gMatch ? parseInt(gMatch[1], 10) : null;
+    if (g == null && !/[XYZIJK]/i.test(line)) continue;
+    const nx = parseWord(line, 'X');
+    const ny = parseWord(line, 'Y');
+    const nz = parseWord(line, 'Z');
+    const ni = parseWord(line, 'I');
+    const nj = parseWord(line, 'J');
+    const p = toAbs(nx, ny, nz);
+    if (!startSet && (nx != null || ny != null)) {
+      startX = p.x; startY = p.y; startZ = p.z; startSet = true;
+    }
+    if (g === 0 || g === 00) {
+      addLine(x, y, z, p.x, p.y, p.z, true);
+      x = p.x; y = p.y; z = p.z;
+    } else if (g === 1) {
+      addLine(x, y, z, p.x, p.y, p.z, false);
+      x = p.x; y = p.y; z = p.z;
+    } else if (g === 2 || g === 3) {
+      addArc(x, y, z, p.x, p.y, p.z, ni || 0, nj || 0, g === 2);
+      x = p.x; y = p.y; z = p.z;
+    } else if (nx != null || ny != null || nz != null) {
+      if (nx != null || ny != null) {
+        addLine(x, y, z, p.x, p.y, p.z, false);
+        x = p.x; y = p.y;
+      }
+      z = p.z;
+    }
+  }
+  return { segs, startX, startY, startZ, startSet, plunges };
+}
+
+function fmtL(v) {
+  const a = Math.abs(v);
+  if (a >= 100) return v.toFixed(1);
+  return v.toFixed(2);
+}
+
+function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, axisALabel, axisBLabel, w, h, pad, scale, minA, maxA, minB, maxB, toolDiameter, plungePoints) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(w * dpr);
+  canvas.height = Math.floor(h * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0a0e16';
+  ctx.fillRect(0, 0, w, h);
+  if (!segs.length) {
+    ctx.fillStyle = '#6a7898';
+    ctx.font = '12px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(tr('previewEmpty'), w / 2, h / 2);
+    return;
+  }
+  const dA = Math.max(1e-6, maxA - minA);
+  const dB = Math.max(1e-6, maxB - minB);
+  const oA = (w - dA * scale) / 2 - minA * scale;
+  const oB = (h + dB * scale) / 2 + minB * scale;
+  function tA(a) { return oA + a * scale; }
+  function tB(b) { return oB - b * scale; }
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(tA(minA), tB(0));
+  ctx.lineTo(tA(maxA), tB(0));
+  ctx.moveTo(tA(0), tB(minB));
+  ctx.lineTo(tA(0), tB(maxB));
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(tA(minA), tB(maxB), (maxA - minA) * scale, (maxB - minB) * scale);
+  for (const s of segs) {
+    const a0 = s[axisAKey + '0'], a1 = s[axisAKey + '1'];
+    const b0 = s[axisBKey + '0'], b1 = s[axisBKey + '1'];
+    if (a0 === a1 && b0 === b1) continue;
+    ctx.beginPath();
+    ctx.moveTo(tA(a0), tB(b0));
+    ctx.lineTo(tA(a1), tB(b1));
+    if (s.type === 'rapid') {
+      ctx.strokeStyle = '#64748b';
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+    } else {
+      ctx.strokeStyle = '#f0a030';
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1.5;
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  if (plungePoints && plungePoints.length) {
+    ctx.fillStyle = '#f0a030';
+    for (const pt of plungePoints) {
+      ctx.beginPath();
+      ctx.arc(tA(pt[axisAKey]), tB(pt[axisBKey]), 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  if (startSet) {
+    const toolRadiusPx = Math.max(2, ((toolDiameter || 0) / 2) * scale);
+    const cx = tA(startA);
+    const cy = tB(startB);
+    const isXZ = (axisAKey === 'x' && axisBKey === 'z');
+    if (isXZ) {
+      const ww = toolRadiusPx * 2;
+      const hh = toolRadiusPx * 6;
+      ctx.beginPath();
+      ctx.rect(cx - ww / 2, cy - hh / 2, ww, hh);
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
+      ctx.fill();
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#22c55e';
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, toolRadiusPx, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
+      ctx.fill();
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#22c55e';
+      ctx.fill();
+    }
+  }
+  ctx.fillStyle = '#38bdf8';
+  ctx.beginPath();
+  ctx.arc(tA(0), tB(0), 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.textBaseline = 'middle';
+  function labelAt(a, b, text, anchor) {
+    const px = tA(a), py = tB(b);
+    let ax = 0, ay = 0;
+    if (anchor === 'left') { ctx.textAlign = 'left'; ax = 5; }
+    else if (anchor === 'right') { ctx.textAlign = 'right'; ax = -5; }
+    else { ctx.textAlign = 'center'; }
+    if (anchor === 'top') ay = -9;
+    else if (anchor === 'bottom') ay = 11;
+    else if (anchor === 'left' || anchor === 'right') ay = 0;
+    else ay = -11;
+    const tw = ctx.measureText(text).width;
+    const bx = px + ax - (ctx.textAlign === 'center' ? tw / 2 : ctx.textAlign === 'right' ? tw : 0);
+    const by = py + ay - 6;
+    ctx.fillStyle = 'rgba(10,14,22,0.75)';
+    ctx.fillRect(bx - 3, by, tw + 6, 12);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText(text, px + ax, py + ay);
+  }
+  labelAt(0, 0, axisALabel + '0,' + axisBLabel + '0', 'bottom');
+  labelAt(minA, (minB + maxB) / 2, axisALabel + 'min ' + fmtL(minA), 'right');
+  labelAt(maxA, (minB + maxB) / 2, axisALabel + 'max ' + fmtL(maxA), 'left');
+  labelAt((minA + maxA) / 2, minB, axisBLabel + 'min ' + fmtL(minB), 'top');
+  labelAt((minA + maxA) / 2, maxB, axisBLabel + 'max ' + fmtL(maxB), 'bottom');
+}
+
+function computeTopPaneFraction(segs) {
+  if (!segs.length) return 0.25;
+  let minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const s of segs) {
+    minY = Math.min(minY, s.y0, s.y1); maxY = Math.max(maxY, s.y0, s.y1);
+    minZ = Math.min(minZ, s.z0, s.z1); maxZ = Math.max(maxZ, s.z0, s.z1);
+  }
+  minY = Math.min(minY, 0); maxY = Math.max(maxY, 0);
+  minZ = Math.min(minZ, 0); maxZ = Math.max(maxZ, 0);
+  const ySpan = Math.max(1e-6, maxY - minY);
+  const zSpan = Math.max(1e-6, maxZ - minZ);
+  let frac = zSpan / (zSpan + ySpan);
+  return Math.min(0.45, Math.max(0.18, frac));
+}
+
+let lastToolDiameter = 10;
+
+function drawPreview(gcode, toolDiameter) {
+  if (toolDiameter != null) lastToolDiameter = toolDiameter;
+  const td = lastToolDiameter;
+  const { segs, startX, startY, startZ, startSet, plunges } = parseGCodePaths(gcode);
+  const paneXZ = document.getElementById('viz-pane-xz');
+  const paneXY = document.getElementById('viz-pane-xy');
+  const frac = computeTopPaneFraction(segs);
+  paneXZ.style.flex = frac + ' 1 0%';
+  paneXY.style.flex = (1 - frac) + ' 1 0%';
+  const canvasXZ = document.getElementById('preview-canvas-xz');
+  const canvasXY = document.getElementById('preview-canvas-xy');
+  const wXZ = Math.max(30, canvasXZ.parentElement.clientWidth);
+  const hXZ = Math.max(30, canvasXZ.parentElement.clientHeight);
+  const wXY = Math.max(30, canvasXY.parentElement.clientWidth);
+  const hXY = Math.max(30, canvasXY.parentElement.clientHeight);
+  const pad = 24;
+  if (!segs.length) {
+    drawView(canvasXZ, segs, 0, 0, false, 'x', 'z', 'X', 'Z', wXZ, hXZ, pad, 1, 0, 1, 0, 1, td);
+    drawView(canvasXY, segs, 0, 0, false, 'x', 'y', 'X', 'Y', wXY, hXY, pad, 1, 0, 1, 0, 1, td);
+    return;
+  }
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const s of segs) {
+    minX = Math.min(minX, s.x0, s.x1); maxX = Math.max(maxX, s.x0, s.x1);
+    minY = Math.min(minY, s.y0, s.y1); maxY = Math.max(maxY, s.y0, s.y1);
+    minZ = Math.min(minZ, s.z0, s.z1); maxZ = Math.max(maxZ, s.z0, s.z1);
+  }
+  if (startSet) {
+    minX = Math.min(minX, startX); maxX = Math.max(maxX, startX);
+    minY = Math.min(minY, startY); maxY = Math.max(maxY, startY);
+    minZ = Math.min(minZ, startZ); maxZ = Math.max(maxZ, startZ);
+  }
+  minX = Math.min(minX, 0); maxX = Math.max(maxX, 0);
+  minY = Math.min(minY, 0); maxY = Math.max(maxY, 0);
+  minZ = Math.min(minZ, 0); maxZ = Math.max(maxZ, 0);
+  const dX = Math.max(1e-6, maxX - minX);
+  const dY = Math.max(1e-6, maxY - minY);
+  const dZ = Math.max(1e-6, maxZ - minZ);
+  const scale = Math.min(
+    (wXZ - 2 * pad) / dX, (hXZ - 2 * pad) / dZ,
+    (wXY - 2 * pad) / dX, (hXY - 2 * pad) / dY
+  );
+  drawView(canvasXZ, segs, startX, startZ, startSet, 'x', 'z', 'X', 'Z', wXZ, hXZ, pad, scale, minX, maxX, minZ, maxZ, td);
+  drawView(canvasXY, segs, startX, startY, startSet, 'x', 'y', 'X', 'Y', wXY, hXY, pad, scale, minX, maxX, minY, maxY, td, plunges);
+}
+
+window.addEventListener('resize', () => {
+  if (generatedCode) drawPreview(generatedCode);
+});
+
+/* ========== Settings PAR MODE ========== */
+const MODE_MAP = {
+  '1': { key: 'surfacing', fields: {
+    start_x:'start_x', start_y:'start_y', start_z:'start_z', clearance_height:'clearance_height',
+    tool_diameter:'tool_diameter', spindle_speed:'spindle_speed', feed_rate:'feed_rate',
+    depth_per_pass:'depth_per_pass', total_depth:'total_depth', width_x:'width_x', length_y:'length_y',
+    overlap_percent:'overlap_percent', path_type_surf:'path_type'
+  }},
+  '2': { key: 'contour_drilling', fields: {
+    start_x:'start_x', start_y:'start_y', start_z:'start_z', clearance_height:'clearance_height',
+    tool_diameter:'tool_diameter', spindle_speed:'spindle_speed', feed_rate:'feed_rate',
+    depth_per_pass:'depth_per_pass', total_depth:'total_depth', hole_diameter:'hole_diameter',
+    drilling_type:'drilling_type', path_type_contour:'path_type', overlap_blind:'overlap_percent'
+  }},
+  '3': { key: 'matrix_drilling', fields: {
+    start_x:'start_x', start_y:'start_y', start_z:'start_z', clearance_height:'clearance_height',
+    tool_diameter:'tool_diameter', spindle_speed:'spindle_speed', feed_rate:'feed_rate',
+    depth_per_pass:'depth_per_pass', total_depth:'total_depth', num_cols:'num_cols', num_rows:'num_rows',
+    spacing_x:'spacing_x', spacing_y:'spacing_y'
+  }},
+  '4': { key: 'corner_radius', fields: {
+    start_x:'start_x', start_y:'start_y', start_z:'start_z', clearance_height:'clearance_height',
+    tool_diameter:'tool_diameter', spindle_speed:'spindle_speed', feed_rate:'feed_rate',
+    depth_per_pass:'depth_per_pass', total_depth:'total_depth', radius:'radius',
+    corner_type:'corner_type', path_type_corner:'path_type'
+  }},
+  '5': { key: 'oblong_hole', fields: {
+    start_x:'start_x', start_y:'start_y', start_z:'start_z', clearance_height:'clearance_height',
+    tool_diameter:'tool_diameter', spindle_speed:'spindle_speed', feed_rate:'feed_rate',
+    depth_per_pass:'depth_per_pass', total_depth:'total_depth', ob_length_x:'length_x',
+    ob_length_y:'length_y', ob_width:'width', path_type_oblong:'path_type'
+  }},
+  '6': { key: 'threading', fields: {
+    start_x:'start_x', start_y:'start_y', start_z:'start_z', clearance_height:'clearance_height',
+    tool_diameter:'tool_diameter', spindle_speed:'spindle_speed', feed_rate:'feed_rate',
+    depth_per_pass:'depth_per_pass', total_depth:'total_depth', th_hole_diameter:'hole_diameter',
+    thread_type:'thread_type', path_type_thread:'path_type', thread_pitch:'thread_pitch',
+    thread_number:'thread_number'
+  }}
+};
+
+let settingsCache = {
+  last_operation: '1', project_name: 'test', machine: 'CNC_450x800',
+  global_units: 'mm', global_feed_rate_percent: '50%', language: 'fr',
+  startup_codes: 'M7 M8 M3 G04P5',
+  surfacing: {}, contour_drilling: {}, matrix_drilling: {},
+  corner_radius: {}, oblong_hole: {}, threading: {}
+};
+
+function parseFieldValue(el) {
+  const v = el.value;
+  if (el.tagName === 'SELECT' || el.type === 'text') return v;
+  const n = parseFloat(v);
+  return (v !== '' && Number.isFinite(n)) ? n : v;
+}
+function readModeFromForm(op) {
+  const map = MODE_MAP[op];
+  if (!map) return {};
+  const obj = {};
+  for (const [htmlId, jsonKey] of Object.entries(map.fields)) {
+    const el = document.getElementById(htmlId);
+    if (el) obj[jsonKey] = parseFieldValue(el);
+  }
+  return obj;
+}
+function writeModeToForm(op, section) {
+  const map = MODE_MAP[op];
+  if (!map || !section) return;
+  for (const [htmlId, jsonKey] of Object.entries(map.fields)) {
+    const el = document.getElementById(htmlId);
+    if (el && section[jsonKey] !== undefined && section[jsonKey] !== null) el.value = section[jsonKey];
+  }
+}
+function captureMode(op) {
+  const map = MODE_MAP[op];
+  if (!map) return;
+  settingsCache[map.key] = readModeFromForm(op);
+  settingsCache.last_operation = op;
+  settingsCache.project_name = str('project_name') || 'test';
+  settingsCache.machine = str('machine') || 'CNC';
+  settingsCache.global_units = str('global_units') || 'mm';
+  settingsCache.global_feed_rate_percent = (str('plunge_percent') || '50') + '%';
+  settingsCache.startup_codes = str('startup_codes') || 'M7 M8 M3 G04P5';
+}
+async function saveSettings() {
+  captureMode(str('operation') || '1');
+  try {
+    await call('saveSettings', { data: settingsCache });
+    return true;
+  } catch (e) {
+    setStatus('Settings: ' + (e.message || e), 'err');
+    return false;
+  }
+}
+async function loadSettings() {
+  try {
+    const s = await call('getSettings');
+    if (s && typeof s === 'object') {
+      if (s.language === 'fr' || s.language === 'en') settingsCache.language = s.language;
+      if (s.surfacing || s.threading || s.last_operation) Object.assign(settingsCache, s);
+      else {
+        const op = String(s.operation || '1');
+        settingsCache.last_operation = op;
+        settingsCache.project_name = s.project_name || settingsCache.project_name;
+        settingsCache.machine = s.machine || settingsCache.machine;
+        settingsCache.global_units = s.global_units || 'mm';
+        if (s.plunge_percent !== undefined) settingsCache.global_feed_rate_percent = String(s.plunge_percent).replace('%','') + '%';
+        if (s.startup_codes !== undefined) settingsCache.startup_codes = s.startup_codes;
+        const map = MODE_MAP[op];
+        if (map) {
+          const section = {};
+          for (const [htmlId, jsonKey] of Object.entries(map.fields)) {
+            if (s[htmlId] !== undefined) {
+              const n = parseFloat(s[htmlId]);
+              section[jsonKey] = Number.isFinite(n) && document.getElementById(htmlId)?.tagName !== 'SELECT' ? n : s[htmlId];
+            }
+          }
+          settingsCache[map.key] = section;
+        }
+      }
+    }
+  } catch (_) {}
+  const op = String(settingsCache.last_operation || '1');
+  document.getElementById('operation').value = op;
+  document.getElementById('project_name').value = settingsCache.project_name || 'test';
+  document.getElementById('machine').value = settingsCache.machine || 'CNC';
+  lastUnits = settingsCache.global_units || 'mm';
+  document.getElementById('global_units').value = lastUnits;
+  document.getElementById('plunge_percent').value = String(settingsCache.global_feed_rate_percent || '50%').replace('%','').trim() || '50';
+  document.getElementById('startup_codes').value = settingsCache.startup_codes || 'M7 M8 M3 G04P5';
+  showModePanel(op);
+  const map = MODE_MAP[op];
+  if (map && settingsCache[map.key]) writeModeToForm(op, settingsCache[map.key]);
+  setStatus(tr('settingsLoaded'), 'ok');
+}
+
+(function bindModeSelect() {
+  const sel = document.getElementById('operation');
+  let prevOp = sel.value;
+  sel.addEventListener('mousedown', () => { prevOp = sel.value; });
+  sel.addEventListener('focus', () => { prevOp = sel.value; });
+  sel.addEventListener('change', () => {
+    captureMode(prevOp);
+    const newOp = sel.value;
+    showModePanel(newOp);
+    const map = MODE_MAP[newOp];
+    if (map && settingsCache[map.key] && Object.keys(settingsCache[map.key]).length)
+      writeModeToForm(newOp, settingsCache[map.key]);
+    settingsCache.last_operation = newOp;
+    prevOp = newOp;
+    applyTooltips();
+    generate();
+  });
+})();
+
+/* ========== Génération automatique ========== */
+(function bindAutoGenerate() {
+  const sidebar = document.querySelector('.sidebar');
+  let debounceTimer = null;
+  function trigger(delay) {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => { generate(); }, delay);
+  }
+  sidebar.addEventListener('input', (e) => {
+    const el = e.target;
+    if (el.id === 'language-select' || el.id === 'operation') return;
+    if (el.tagName === 'INPUT') trigger(400);
+  });
+  sidebar.addEventListener('change', (e) => {
+    const el = e.target;
+    if (el.id === 'language-select' || el.id === 'operation') return;
+    if (el.id === 'global_units') {
+      applyUnitsChange(el.value);
+    }
+    if (el.tagName === 'SELECT') trigger(0);
+  });
+})();
+
+function expandStartupCodes(raw, spindleSpeed) {
+  let s = String(raw || '').trim();
+  s = s.replace(/\bG0*4\s*P\s*([-+]?\d*\.?\d+)/gi, 'G04§P$1');
+  const tokens = s.split(/\s+/).filter(Boolean);
+  const lines = [];
+  for (const tok of tokens) {
+    let code = tok.replace('§', ' ');
+    if (/^M0*3$/i.test(code)) {
+      code = code + ' S' + Math.round(spindleSpeed);
+    }
+    lines.push(code);
+  }
+  return lines;
+}
+
+function generateHeader(p, stockX, stockY, stockZ) {
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const units = p.global_units === 'in' ? 'G20' : 'G21';
+  const startupLines = expandStartupCodes(p.startup_codes, p.spindle_speed);
+  return [
+    '; NC from Utility-G-code Generator (FigUI)',
+    '; ' + p.project_name, '; ' + now, '; ' + p.machine,
+    `; (${fmt(stockX)}, ${fmt(stockY)}, ${fmt(stockZ)} ${p.global_units})`,
+    `${units} ;(${p.global_units})`, 'G90',
+    ...startupLines,
+    ''
+  ].join('\n');
+}
+function footer(clearance) {
+  return [`G00 Z${fmt(clearance)}`, 'G90', 'M5', 'M30'].join('\n');
+}
+
+function genSurfacing(p) {
+  const pathCode = { conventional: '1', climb: '2', alternate: '3' }[p.path_type] || '1';
+  const labels = { conventional: 'Opposition', climb: 'Avalant', alternate: 'Alterné' };
+  // --- genSurfacing ---
+  if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
+  if (p.overlap_percent < 0 || p.overlap_percent >= 100) throw new Error(tr('overlapRangeError'));
+  const stepOver = p.tool_diameter * (1 - p.overlap_percent / 100);
+  const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
+  const numPassesY = Math.ceil(p.length_y / stepOver);
+  const offset = p.tool_diameter / 2;
+  const initialX = p.start_x - offset, initialY = p.start_y - offset;
+  const endX = p.start_x + p.width_x, endY = p.start_y + p.length_y;
+  const plunge = p.feed_rate * p.plunge_percent / 100;
+  let g = [];
+  g.push(`; Surfacing (${labels[p.path_type] || 'Opposition'})`);
+  g.push(`G01 Z${fmt(p.clearance_height)} S${Math.round(p.spindle_speed)} F${Math.round(p.feed_rate)}`);
+  if (pathCode === '2') g.push(`G01 X${fmt(initialX)} Y${fmt(endY)}`);
+  else g.push(`G01 X${fmt(initialX)} Y${fmt(initialY)}`);
+  let currentZ = p.start_z;
+  for (let i = 0; i < numPassesZ; i++) {
+    currentZ -= Math.min(p.depth_per_pass, p.total_depth - i * p.depth_per_pass);
+    g.push(`; Pass ${i + 1} at Z=${fmt(currentZ)}`);
+    g.push(`G01 Z${fmt(currentZ)} F${fmt(plunge)}`);
+    let currentY = initialY;
+    for (let j = 0; j < numPassesY; j++) {
+      if (currentY > p.start_y + p.length_y) break;
+      if (pathCode === '3') {
+        g.push(`G01 Y${fmt(currentY)} F${Math.round(p.feed_rate)}`);
+        g.push(j % 2 === 0 ? `G01 X${fmt(endX)} F${Math.round(p.feed_rate)}` : `G01 X${fmt(p.start_x)} F${Math.round(p.feed_rate)}`);
+      } else if (pathCode === '2') {
+        g.push(`G01 Y${fmt(currentY)} F${Math.round(p.feed_rate)}`);
+        g.push(`G01 X${fmt(p.start_x)} F${Math.round(p.feed_rate)}`);
+        if (currentY + stepOver <= p.start_y + p.length_y) g.push(`G00 X${fmt(endX)}`);
+      } else {
+        g.push(`G01 Y${fmt(currentY)} F${Math.round(p.feed_rate)}`);
+        g.push(`G01 X${fmt(endX)} F${Math.round(p.feed_rate)}`);
+        if (currentY + stepOver <= p.start_y + p.length_y) g.push(`G00 X${fmt(p.start_x)}`);
+      }
+      currentY += stepOver;
+    }
+    if (currentY <= p.start_y + p.length_y) g.push(`G01 Y${fmt(currentY)} F${Math.round(p.feed_rate)}`);
+  }
+  g.push(`G00 Z${fmt(p.clearance_height)}`);
+
+    // --- Tour de finition sur les 4 faces (décalage = rayon outil) ---
+  const toolR = p.tool_diameter / 2;
+  const xMin = p.start_x - toolR;
+  const xMax = p.start_x + p.width_x + toolR;
+  const yMin = p.start_y - toolR;
+  const yMax = p.start_y + p.length_y + toolR;
+  const finalZ = currentZ;
+  const feed = Math.round(p.feed_rate);
+
+  g.push('; Perimeter finish (tool radius offset)');
+  g.push(`G00 Z${fmt(p.clearance_height)}`);
+  g.push(`G00 X${fmt(xMin)} Y${fmt(yMin)}`);
+  g.push(`G01 Z${fmt(finalZ)} F${fmt(plunge)}`);
+
+  if (pathCode === '1') {
+    // Opposition → horaire (CW)
+    g.push(`G01 X${fmt(xMax)} Y${fmt(yMin)} F${feed}`);
+    g.push(`G01 X${fmt(xMax)} Y${fmt(endY)} F${feed}`);
+    g.push(`G01 X${fmt(xMin)} Y${fmt(endY)} F${feed}`);
+    g.push(`G01 X${fmt(xMin)} Y${fmt(yMin)} F${feed}`);
+  } else if (pathCode === '2')  {
+    // Avalant / Alterné → anti-horaire (CCW)
+    g.push(`G01 X${fmt(xMax)} Y${fmt(yMin)} F${feed}`);
+    g.push(`G01 X${fmt(xMax)} Y${fmt(endY)} F${feed}`);
+    g.push(`G01 X${fmt(xMin)} Y${fmt(endY)} F${feed}`);
+    g.push(`G0 X${fmt(xMin)} Y${fmt(yMin)} Z${fmt(p.clearance_height)}`);
+  } else {
+    // Avalant / Alterné → anti-horaire (CCW)
+    g.push(`G01 X${fmt(xMin)} Y${fmt(endY)} F${feed}`);
+    g.push(`G01 X${fmt(xMax)} Y${fmt(endY)} F${feed}`);
+    g.push(`G01 X${fmt(xMax)} Y${fmt(yMin)} F${feed}`);
+    g.push(`G01 X${fmt(xMin)} Y${fmt(yMin)} F${feed}`);
+  }
+
+  g.push(`G00 Z${fmt(p.clearance_height)}`);
+  return {
+    body: g.join('\n'),
+    stockX: p.width_x + p.tool_diameter,
+    stockY: p.length_y + p.tool_diameter,
+    stockZ: p.total_depth + p.clearance_height
+  };
+}
+
+function genContour(p) {
+  if (p.hole_diameter <= p.tool_diameter) throw new Error(tr('holeMustBeLarger'));
+  if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
+  const isBlind = p.drilling_type === 'blind';
+  const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
+  const holeR = p.hole_diameter / 2, toolR = p.tool_diameter / 2;
+  let circleR, numCircles, stepOver = 0;
+  if (p.drilling_type === 'outer') { circleR = holeR + toolR; numCircles = 1; }
+  else {
+    circleR = holeR - toolR;
+    if (isBlind) {
+      stepOver = p.tool_diameter * (1 - p.overlap_percent / 100);
+      numCircles = Math.floor((holeR - toolR) / stepOver) + 1;
+    } else numCircles = 1;
+  }
+  const plunge = p.feed_rate * p.plunge_percent / 100;
+  const pathIsConv = p.path_type === 'conventional';
+  let g = [];
+  g.push('; Contour drilling');
+  g.push(`G0 S${Math.round(p.spindle_speed)} F${Math.round(p.feed_rate)}`);
+  g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
+  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}`);
+  let currentZ = p.start_z;
+  for (let i = 0; i < numPassesZ; i++) {
+    currentZ -= Math.min(p.depth_per_pass, p.total_depth - i * p.depth_per_pass);
+    g.push(`; Pass ${i + 1} at Z=${fmt(currentZ)}`);
+    for (let j = 0; j < numCircles; j++) {
+      let r = isBlind ? circleR - j * stepOver : circleR;
+      if (isBlind && r < toolR) r = toolR;
+      const tx = p.start_x + r;
+      g.push(`G00 X${fmt(tx)} Y${fmt(p.start_y)}`);
+      g.push(`G01 Z${fmt(currentZ)} F${fmt(plunge)}`);
+      g.push(pathIsConv
+        ? `G02 X${fmt(tx)} Y${fmt(p.start_y)} I${fmt(-r)} J0.000 F${Math.round(p.feed_rate)}`
+        : `G03 X${fmt(tx)} Y${fmt(p.start_y)} I${fmt(-r)} J0.000 F${Math.round(p.feed_rate)}`);
+    }
+  }
+  g.push(`G00 Z${fmt(p.clearance_height)}`);
+  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}`);
+  const stock = p.drilling_type === 'outer' ? p.hole_diameter + 2 * p.tool_diameter : p.hole_diameter + p.tool_diameter;
+  return { body: g.join('\n'), stockX: stock, stockY: stock, stockZ: p.total_depth + p.clearance_height };
+}
+
+function genMatrix(p) {
+  if (p.num_cols < 1 || p.num_rows < 1) throw new Error(tr('colsRowsError'));
+  if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
+  const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
+  const plunge = p.feed_rate * p.plunge_percent / 100;
+  const approachOffset = 1;
+  let g = [];
+  g.push('; Matrix drilling RAST');
+  g.push(`; ${p.num_cols} x ${p.num_rows} holes`);
+  g.push(`G0 S${Math.round(p.spindle_speed)} F${Math.round(p.feed_rate)}`);
+  g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
+  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}`);
+  for (let j = 0; j < p.num_rows; j++) {
+    const cy = p.start_y + j * p.spacing_y;
+    let xs = [];
+    for (let i = 0; i < p.num_cols; i++) xs.push(p.start_x + i * p.spacing_x);
+    if (j % 2 === 1) xs.reverse();
+    for (const cx of xs) {
+      g.push(`; Hole X=${fmt(cx)} Y=${fmt(cy)}`);
+      g.push(`G00 X${fmt(cx)} Y${fmt(cy)}`);
+      let currentZ = p.start_z;
+      let prevZ = p.start_z;
+      for (let k = 0; k < numPassesZ; k++) {
+        currentZ -= Math.min(p.depth_per_pass, p.total_depth - k * p.depth_per_pass);
+        if (k > 0) g.push(`G00 Z${fmt(prevZ + approachOffset)}`);
+        g.push(`G01 Z${fmt(currentZ)} F${fmt(plunge)}`);
+        prevZ = currentZ;
+        if (k < numPassesZ - 1) g.push(`G00 Z${fmt(p.clearance_height)}`);
+      }
+      g.push(`G00 Z${fmt(p.clearance_height)}`);
+    }
+  }
+  return {
+    body: g.join('\n'),
+    stockX: p.num_cols > 1 ? (p.num_cols - 1) * p.spacing_x : 10,
+    stockY: p.num_rows > 1 ? (p.num_rows - 1) * p.spacing_y : 10,
+    stockZ: p.total_depth + p.clearance_height
+  };
+}
+
+function genCorner(p) {
+  if (p.radius <= 0 || p.tool_diameter <= 0) throw new Error(tr('radiusToolError'));
+  if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
+  const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
+  const arcR = p.radius + p.tool_diameter / 2;
+  const plunge = p.feed_rate * p.plunge_percent / 100;
+  const conv = p.path_type !== 'conventional';
+  let arcCmd, returnX, returnY;
+  if (p.corner_type === 'front_left') {
+    if (conv) { arcCmd = `G03 X${fmt(arcR)} Y-${fmt(arcR)} I${fmt(arcR)} J0.000 F${Math.round(p.feed_rate)}`; returnX = `G00 X-${fmt(arcR)}`; returnY = `G00 Y${fmt(arcR)}`; }
+    else { arcCmd = `G02 X-${fmt(arcR)} Y${fmt(arcR)} I0.000 J${fmt(arcR)} F${Math.round(p.feed_rate)}`; returnX = `G00 X${fmt(arcR)}`; returnY = `G00 Y-${fmt(arcR)}`; }
+  } else if (p.corner_type === 'front_right') {
+    if (conv) { arcCmd = `G03 X${fmt(arcR)} Y${fmt(arcR)} I0.000 J${fmt(arcR)} F${Math.round(p.feed_rate)}`; returnX = `G00 X-${fmt(arcR)}`; returnY = `G00 Y-${fmt(arcR)}`; }
+    else { arcCmd = `G02 X-${fmt(arcR)} Y-${fmt(arcR)} I-${fmt(arcR)} J0.000 F${Math.round(p.feed_rate)}`; returnX = `G00 X${fmt(arcR)}`; returnY = `G00 Y${fmt(arcR)}`; }
+  } else if (p.corner_type === 'rear_right') {
+    if (conv) { arcCmd = `G03 X-${fmt(arcR)} Y${fmt(arcR)} I-${fmt(arcR)} J0.000 F${Math.round(p.feed_rate)}`; returnX = `G00 X${fmt(arcR)}`; returnY = `G00 Y-${fmt(arcR)}`; }
+    else { arcCmd = `G02 X${fmt(arcR)} Y-${fmt(arcR)} I0.000 J-${fmt(arcR)} F${Math.round(p.feed_rate)}`; returnX = `G00 X-${fmt(arcR)}`; returnY = `G00 Y${fmt(arcR)}`; }
+  } else {
+    if (conv) { arcCmd = `G03 X-${fmt(arcR)} Y-${fmt(arcR)} I0.000 J-${fmt(arcR)} F${Math.round(p.feed_rate)}`; returnX = `G00 X${fmt(arcR)}`; returnY = `G00 Y${fmt(arcR)}`; }
+    else { arcCmd = `G02 X${fmt(arcR)} Y${fmt(arcR)} I${fmt(arcR)} J0.000 F${Math.round(p.feed_rate)}`; returnX = `G00 X-${fmt(arcR)}`; returnY = `G00 Y-${fmt(arcR)}`; }
+  }
+  let g = [];
+  g.push('; Corner radius 90°');
+  g.push(`G0 S${Math.round(p.spindle_speed)} F${Math.round(p.feed_rate)}`);
+  g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
+  g.push('G91');
+  for (let i = 0; i < numPassesZ; i++) {
+    const depth = Math.min(p.depth_per_pass, p.total_depth - i * p.depth_per_pass);
+    const targetZ = p.start_z - (i * p.depth_per_pass + depth);
+    g.push(`; Pass ${i + 1} at Z=${fmt(targetZ)}`);
+    g.push('G90');
+    g.push(`G01 Z${fmt(targetZ)} F${fmt(plunge)}`);
+    g.push('G91');
+    g.push(arcCmd);
+    g.push('G90');
+    g.push(`G00 Z${fmt(p.clearance_height)}`);
+    if (i < numPassesZ - 1) { g.push('G91'); g.push(returnX); g.push(returnY); }
+  }
+  return { body: g.join('\n'), stockX: arcR * 2, stockY: arcR * 2, stockZ: p.clearance_height + p.total_depth };
+}
+
+function genOblong(p) {
+  if (p.width < p.tool_diameter) throw new Error(tr('widthToolError'));
+  if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
+  const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
+  const halfW = (p.width - p.tool_diameter) / 2, halfLx = p.length_x / 2, halfLy = p.length_y / 2;
+  const plunge = p.feed_rate * p.plunge_percent / 100;
+  const conv = p.path_type === 'conventional';
+  let g = [];
+  g.push('; Oblong hole');
+  g.push('G90');
+  g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
+  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}  F${Math.round(p.feed_rate)}`);
+  for (let i = 0; i < numPassesZ; i++) {
+    const targetZ = p.start_z - Math.min((i + 1) * p.depth_per_pass, p.total_depth);
+    g.push(`; Pass ${i + 1} at Z=${fmt(targetZ)}`);
+    if (conv) {
+      g.push('G90');
+      g.push(`G01 X${fmt(p.start_x)} Y${fmt(p.start_y - halfW)} F${Math.round(p.feed_rate)}`);
+      g.push(`G01 Z${fmt(targetZ)} F${fmt(plunge)}`);
+      g.push('G91');
+      g.push(`G01 X${fmt(-halfLx)} Y${fmt(-halfLy)}`);
+      g.push(`G02 X${fmt(-halfW)} Y${fmt(halfW)} I0.000 J${fmt(halfW)} F${Math.round(p.feed_rate)}`);
+      g.push(`G01 X0.000 Y${fmt(p.length_y)} F${Math.round(p.feed_rate)}`);
+      g.push(`G02 X${fmt(halfW)} Y${fmt(halfW)} I${fmt(halfW)} J0.000 F${Math.round(p.feed_rate)}`);
+      g.push(`G01 X${fmt(p.length_x)} Y0.000 F${Math.round(p.feed_rate)}`);
+      g.push(`G02 X${fmt(halfW)} Y${fmt(-halfW)} I0.000 J${fmt(-halfW)} F${Math.round(p.feed_rate)}`);
+      g.push(`G01 X0.000 Y${fmt(-p.length_y)} F${Math.round(p.feed_rate)}`);
+      g.push(`G02 X${fmt(-halfW)} Y${fmt(-halfW)} I${fmt(-halfW)} J0.000 F${Math.round(p.feed_rate)}`);
+      g.push(`G01 X${fmt(-p.length_x)} Y0.000 F${Math.round(p.feed_rate)}`);
+      g.push('G90');
+    } else {
+      g.push('G90');
+      g.push(`G01 X${fmt(p.start_x - halfW)} Y${fmt(p.start_y - p.length_y)} F${Math.round(p.feed_rate)}`);
+      g.push(`G01 Z${fmt(targetZ)} F${fmt(plunge)}`);
+      g.push('G91');
+      g.push(`G01 X${fmt(-halfLx)} Y${fmt(halfLy)}`);
+      g.push(`G03 X${fmt(halfW)} Y${fmt(-halfW)} I${fmt(halfW)} J0.000 F${Math.round(p.feed_rate)}`);
+      g.push(`G01 X${fmt(p.length_x)} Y0.000 F${Math.round(p.feed_rate)}`);
+      g.push(`G03 X${fmt(halfW)} Y${fmt(halfW)} I0.000 J${fmt(halfW)} F${Math.round(p.feed_rate)}`);
+      g.push(`G01 X0.000 Y${fmt(p.length_y)} F${Math.round(p.feed_rate)}`);
+      g.push(`G03 X${fmt(-halfW)} Y${fmt(halfW)} I${fmt(-halfW)} J0.000 F${Math.round(p.feed_rate)}`);
+      g.push(`G01 X${fmt(-p.length_x)} Y0.000 F${Math.round(p.feed_rate)}`);
+      g.push(`G03 X${fmt(-halfW)} Y${fmt(-halfW)} I0.000 J${fmt(-halfW)} F${Math.round(p.feed_rate)}`);
+      g.push(`G01 X0.000 Y${fmt(-p.length_y)} F${Math.round(p.feed_rate)}`);
+      g.push('G90');
+    }
+  }
+  g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
+  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}  F${Math.round(p.feed_rate)}`);
+  g.push('G90');
+  return { body: g.join('\n'), stockX: p.length_x + p.tool_diameter, stockY: p.length_y + p.tool_diameter, stockZ: p.start_z + p.total_depth };
+}
+
+function genThreading(p) {
+  if (p.hole_diameter <= p.tool_diameter) throw new Error(tr('holeToolError'));
+  if (p.thread_pitch <= 0 || p.thread_number <= 0) throw new Error(tr('pitchThreadError'));
+  const numRadial = Math.ceil(p.total_depth / p.depth_per_pass);
+  const holeR = p.hole_diameter / 2, toolR = p.tool_diameter / 2;
+  const arcCode = p.path_type === 'left' ? 'G03' : 'G02';
+  const isNut = p.thread_type === 'nut_internal';
+  let g = [];
+  g.push('; Threading');
+  g.push(`G00 Z${fmt(p.clearance_height)} S${Math.round(p.spindle_speed)}`);
+  if (isNut) {
+    const baseX = holeR - p.depth_per_pass - toolR - p.total_depth;
+    g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)} Z${fmt(p.start_z)} F${Math.round(p.feed_rate)}`);
+    for (let pass = 1; pass <= numRadial; pass++) {
+      const currentX = baseX + (pass + 1) * p.depth_per_pass;
+      g.push(`G01 X${fmt(p.start_x + currentX)} Y${fmt(p.start_y)}`);
+      for (let turn = 1; turn <= p.thread_number; turn++) {
+        g.push(`${arcCode} X${fmt(p.start_x + currentX)} Y${fmt(p.start_y)} I${fmt(-currentX)} J0.000 Z${fmt(p.start_z - p.thread_pitch * turn)}`);
+      }
+      g.push(`${arcCode} X${fmt(p.start_x + currentX)} Y${fmt(p.start_y)} I${fmt(-currentX)} J0.000`);
+      g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}`);
+      if (pass < numRadial) g.push(`G00 Z${fmt(p.start_z)}`);
+    }
+  } else {
+    const baseX = holeR - p.depth_per_pass + toolR;
+    const retractX = p.start_x + holeR + toolR + p.total_depth;
+    g.push(`G00 X${fmt(retractX)} Y${fmt(p.start_y)} Z${fmt(p.start_z)} F${Math.round(p.feed_rate)}`);
+    for (let pass = 1; pass <= numRadial; pass++) {
+      const currentX = baseX - pass * p.depth_per_pass + p.depth_per_pass;
+      g.push(`G01 X${fmt(p.start_x + currentX)} Y${fmt(p.start_y)}`);
+      for (let turn = 1; turn <= p.thread_number; turn++) {
+        g.push(`${arcCode} X${fmt(p.start_x + currentX)} Y${fmt(p.start_y)} I${fmt(-currentX)} J0.000 Z${fmt(p.start_z - p.thread_pitch * turn)}`);
+      }
+      g.push(`${arcCode} X${fmt(p.start_x + currentX)} Y${fmt(p.start_y)} I${fmt(-currentX)} J0.000`);
+      g.push(`G00 X${fmt(retractX)} Y${fmt(p.start_y)}`);
+      if (pass < numRadial) g.push(`G00 Z${fmt(p.start_z)}`);
+    }
+  }
+  g.push(`G00 Z${fmt(p.clearance_height)}`);
+  const stock = p.hole_diameter + p.tool_diameter;
+  return { body: g.join('\n'), stockX: stock, stockY: stock, stockZ: p.total_depth + p.clearance_height };
+}
+
+function collectParams() {
+  const op = str('operation');
+  const base = {
+    operation: op,
+    project_name: str('project_name') || 'test',
+    machine: str('machine') || 'CNC',
+    global_units: str('global_units') || 'mm',
+    plunge_percent: Math.min(100, Math.max(1, num('plunge_percent', 50))),
+    startup_codes: str('startup_codes') || 'M7 M8 M3 G04P5',
+    start_x: num('start_x', 0), start_y: num('start_y', 0), start_z: num('start_z', 0),
+    clearance_height: Math.max(0.1, num('clearance_height', 5)),
+    tool_diameter: Math.max(0.1, num('tool_diameter', 10)),
+    spindle_speed: Math.max(0, num('spindle_speed', 1000)),
+    feed_rate: Math.max(1, num('feed_rate', 1800)),
+    depth_per_pass: Math.max(0.01, num('depth_per_pass', 1)),
+    total_depth: Math.max(0.01, num('total_depth', 2))
+  };
+  if (op === '1') return { ...base, width_x: Math.max(0.1, num('width_x', 100)), length_y: Math.max(0.1, num('length_y', 100)), overlap_percent: Math.min(99, Math.max(0, num('overlap_percent', 50))), path_type: str('path_type_surf') || 'conventional' };
+  if (op === '2') return { ...base, hole_diameter: Math.max(0.1, num('hole_diameter', 30)), drilling_type: str('drilling_type') || 'contour', path_type: str('path_type_contour') || 'conventional', overlap_percent: Math.min(99, Math.max(0, num('overlap_blind', 50))) };
+  if (op === '3') return { ...base, num_cols: Math.max(1, Math.round(num('num_cols', 1))), num_rows: Math.max(1, Math.round(num('num_rows', 1))), spacing_x: Math.max(0, num('spacing_x', 10)), spacing_y: Math.max(0, num('spacing_y', 10)) };
+  if (op === '4') return { ...base, radius: Math.max(0.1, num('radius', 10)), corner_type: str('corner_type') || 'front_left', path_type: str('path_type_corner') || 'conventional' };
+  if (op === '5') return { ...base, length_x: Math.max(0, num('ob_length_x', 20)), length_y: Math.max(0, num('ob_length_y', 20)), width: Math.max(0.1, num('ob_width', 10)), path_type: str('path_type_oblong') || 'conventional' };
+  if (op === '6') return { ...base, hole_diameter: Math.max(0.1, num('th_hole_diameter', 30)), thread_type: str('thread_type') || 'nut_internal', path_type: str('path_type_thread') || 'right', thread_pitch: Math.max(0.01, num('thread_pitch', 1.5)), thread_number: Math.max(1, Math.round(num('thread_number', 6))) };
+  return base;
+}
+
+async function generate() {
+  try {
+    const p = collectParams();
+    let result;
+    switch (p.operation) {
+      case '1': result = genSurfacing(p); break;
+      case '2': result = genContour(p); break;
+      case '3': result = genMatrix(p); break;
+      case '4': result = genCorner(p); break;
+      case '5': result = genOblong(p); break;
+      case '6': result = genThreading(p); break;
+      default: throw new Error('Mode inconnu');
+    }
+    generatedCode = generateHeader(p, result.stockX, result.stockY, result.stockZ) + '\n' + result.body + '\n' + footer(p.clearance_height);
+    document.getElementById('gcode-output').value = generatedCode;
+    document.getElementById('open-btn').disabled = false;
+    requestAnimationFrame(() => drawPreview(generatedCode, p.tool_diameter));
+    const ok = await saveSettings();
+    setStatus(ok ? tr('gcodeGeneratedPreviewOk') : tr('gcodeGeneratedSettingsError'), ok ? 'ok' : 'err');
+  } catch (e) {
+    setStatus(e.message || String(e), 'err');
+  }
+}
+
+async function openInViewer() {
+  if (!generatedCode) { setStatus(tr('generateFirst'), 'err'); return; }
+  const p = collectParams();
+  const safe = (p.project_name || 'test').replace(/[<>:"/\\|?*]/g, '_');
+  const names = { '1': 'surf', '2': 'contour', '3': 'matrix', '4': 'corner', '5': 'oblong', '6': 'thread' };
+  const path = `/sd/${names[p.operation] || 'op'}_${safe}.nc`;
+  try {
+    await saveSettings();
+    setStatus(tr('saving'), '');
+    await call('writeFile', { path, content: generatedCode, fs: 'sd' });
+    let loaded = false;
+    for (const t of [
+      { method: 'loadFile', params: { path, fs: 'sd' } },
+      { method: 'openFile', params: { path, fs: 'sd' } },
+      { method: 'loadGcode', params: { path, fs: 'sd' } },
+      { method: 'previewFile', params: { path, fs: 'sd' } }
+    ]) {
+      try { await call(t.method, t.params); loaded = true; break; } catch (_) {}
+    }
+    setStatus(loaded ? tr('loadedInViewer') : tr('savedOpenFiles', { path }), 'ok');
+    setTimeout(() => { try { call('close'); } catch (_) {} }, 400);
+  } catch (e) {
+    setStatus(tr('error', { message: (e.message || e) }), 'err');
+  }
+}
+
+loadSettings().finally(() => { applyLanguage(); generate(); });
+</script>
+</body>
+</html>

@@ -52,7 +52,28 @@ select { cursor: pointer; }
   border-color: var(--accent, #f0a030) !important;
   padding: 8px !important;
 }
-.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.row2, .row3 {
+  display: grid;
+  gap: 6px;
+  align-items: end;
+}
+.row2 { grid-template-columns: 1fr 1fr; }
+.row3 { grid-template-columns: 1fr 1fr 1fr; }
+.row2 > div,
+.row3 > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.row2 label,
+.row3 label {
+  margin-top: 0;
+  line-height: 1.25;
+  min-height: 2.5em;
+  display: flex;
+  align-items: flex-end;
+}
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 .main-split {
   flex: 1;
@@ -163,24 +184,19 @@ select { cursor: pointer; }
   .main-split { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
   .panel-left { border-right: none; border-bottom: 1px solid var(--border, #222840); }
 }
-
 .language-section { padding-top: 8px; padding-bottom: 8px; }
 .language-section select { font-weight: 600; }
 </style>
 
 <script>
-/* ============================================================
-   Interface multilingue : Français / English
-   Les IDs, valeurs des SELECT et le G-code restent inchangés.
-   ============================================================ */
-   /* Tooltips FR/EN — source : tooltips.json */
 const TOOLTIPS = {
   fr: {
     common: {
       project_name: "Nom du projet, utilisé dans l'en-tête du G-code et pour nommer le fichier exporté.",
       machine: "Identifiant de la machine (informatif), inscrit dans l'en-tête du G-code.",
       global_units: "Unités de travail : mm (G21) ou pouces (G20). Affecte toutes les cotes saisies.",
-      plunge_percent: "Vitesse de plongée en % de l'avance de coupe (Avance). Réduit la vitesse en Z lors des descentes."
+      plunge_percent: "Vitesse de plongée en % de l'avance de coupe (Avance). Réduit la vitesse en Z lors des descentes.",
+      startup_codes: "Codes G/M de démarrage, séparés par des espaces (ex. M7 M8 M3 G04P5). Si M3 est présent, S + Broche RPM est ajouté juste après. Chaque code est écrit sur sa propre ligne dans le G-code."
     },
     modes: {
       "1": {
@@ -217,17 +233,16 @@ const TOOLTIPS = {
         start_x: "Position X du premier trou de la matrice (coin de référence).",
         start_y: "Position Y du premier trou de la matrice (coin de référence).",
         start_z: "Altitude Z de la surface avant perçage.",
-        clearance_height: "Hauteur de dégagement en Z entre chaque trou.",
+        clearance_height: "Hauteur de dégagement en Z entre chaque trou et entre les passes de perçage.",
         tool_diameter: "Diamètre du foret ou de la fraise de perçage (informatif).",
         spindle_speed: "Vitesse de rotation broche (tr/min).",
         feed_rate: "Vitesse d'avance en usinage (mm/min), utilisée pour la descente en Z.",
-        depth_per_pass: "Profondeur de perçage par passe (avec débourrage entre chaque passe).",
+        depth_per_pass: "Profondeur de perçage par passe (remontée au dégagement Z entre chaque passe).",
         total_depth: "Profondeur totale de chaque trou de la matrice.",
         num_cols: "Nombre de colonnes (trous suivant l'axe X).",
         num_rows: "Nombre de lignes (trous suivant l'axe Y).",
         spacing_x: "Entraxe entre deux colonnes consécutives (pas en X).",
-        spacing_y: "Entraxe entre deux lignes consécutives (pas en Y).",
-        deburr_height: "Remontée intermédiaire en Z entre les passes de perçage (débourrage des copeaux)."
+        spacing_y: "Entraxe entre deux lignes consécutives (pas en Y)."
       },
       "4": {
         start_x: "Position X de l'angle à traiter (coin de la pièce).",
@@ -281,7 +296,8 @@ const TOOLTIPS = {
       project_name: "Project name, used in the G-code header and as the exported file name.",
       machine: "Machine identifier (informational), written in the G-code header.",
       global_units: "Working units: mm (G21) or inches (G20). Affects all entered dimensions.",
-      plunge_percent: "Plunge speed as a % of the feed rate. Slows down Z descents."
+      plunge_percent: "Plunge speed as a % of the feed rate. Slows down Z descents.",
+      startup_codes: "Startup G/M codes, space-separated (e.g. M7 M8 M3 G04P5). If M3 is present, S + Spindle RPM is inserted right after it. Each code is written on its own line in the G-code."
     },
     modes: {
       "1": {
@@ -318,17 +334,16 @@ const TOOLTIPS = {
         start_x: "X position of the first hole in the matrix (reference corner).",
         start_y: "Y position of the first hole in the matrix (reference corner).",
         start_z: "Z height of the surface before drilling.",
-        clearance_height: "Z clearance height between each hole.",
+        clearance_height: "Z clearance height between each hole and between drilling passes.",
         tool_diameter: "Diameter of the drill or mill used (informational).",
         spindle_speed: "Spindle rotation speed (RPM).",
         feed_rate: "Cutting feed rate (mm/min), used for the Z descent.",
-        depth_per_pass: "Drilling depth per pass (with a peck/deburr retract between each).",
+        depth_per_pass: "Drilling depth per pass (retract to Z clearance between each).",
         total_depth: "Total depth of each hole in the matrix.",
         num_cols: "Number of columns (holes along X).",
         num_rows: "Number of rows (holes along Y).",
         spacing_x: "Spacing between two consecutive columns (X pitch).",
-        spacing_y: "Spacing between two consecutive rows (Y pitch).",
-        deburr_height: "Intermediate Z retract between drilling passes (chip clearing)."
+        spacing_y: "Spacing between two consecutive rows (Y pitch)."
       },
       "4": {
         start_x: "X position of the corner to machine (part corner).",
@@ -378,6 +393,7 @@ const TOOLTIPS = {
     }
   }
 };
+
 const I18N = {
   fr: {
     language: "Langue",
@@ -387,6 +403,7 @@ const I18N = {
     machine: "Machine",
     units: "Unités",
     plungePercent: "Plongée %",
+    startupCodes: "Codes démarrage",
     startPosition: "Position départ (par mode)",
     startX: "Départ X",
     startY: "Départ Y",
@@ -397,7 +414,7 @@ const I18N = {
     spindleSpeed: "Broche RPM",
     feedRate: "Avance (mm/min)",
     depthPerPass: "Prof. / passe",
-    totalDepth: "Profondeur totale (mm)",
+    totalDepth: "Prof. totale (mm)",
     surfacing: "Surfaçage",
     contourDrilling: "Perçage détourage",
     matrixDrilling: "Matrice RAST",
@@ -413,11 +430,10 @@ const I18N = {
     drillingType: "Type perçage",
     path: "Parcours",
     blindOverlap: "Chevauchement % (borgne)",
-    columns: "Colonnes",
-    rows: "Lignes",
+    columns: "Colonnes X",
+    rows: "Lignes Y",
     spacingX: "Pas X",
     spacingY: "Pas Y",
-    deburrHeight: "Hauteur débourrage",
     radius: "Rayon (mm)",
     corner: "Coin",
     width: "Largeur (mm)",
@@ -426,7 +442,6 @@ const I18N = {
     direction: "Sens",
     threadPitch: "Pas filet",
     threadCount: "Nb filets",
-    generateGcode: "Générer G-code",
     gcode: "G-code",
     preview2d: "2D (XY)",
     start: "Départ",
@@ -458,7 +473,6 @@ const I18N = {
     leftG03: "Gauche (G03)",
     previewEmpty: "Génère un G-code pour l’aperçu",
     settingsLoaded: "Réglages chargés",
-    modeLoaded: "Mode {mode} chargé",
     gcodeGeneratedPreviewOk: "G-code généré · aperçu OK",
     gcodeGeneratedSettingsError: "G-code généré · settings ÉCHEC",
     generateFirst: "Génère d’abord le G-code",
@@ -477,6 +491,7 @@ const I18N = {
     machine: "Machine",
     units: "Units",
     plungePercent: "Plunge %",
+    startupCodes: "Startup codes",
     startPosition: "Start position (per mode)",
     startX: "Start X",
     startY: "Start Y",
@@ -503,11 +518,10 @@ const I18N = {
     drillingType: "Drilling type",
     path: "Path",
     blindOverlap: "Overlap % (blind)",
-    columns: "Columns",
-    rows: "Rows",
+    columns: "Columns X",
+    rows: "Rows Y",
     spacingX: "Spacing X",
     spacingY: "Spacing Y",
-    deburrHeight: "Deburring height",
     radius: "Radius (mm)",
     corner: "Corner",
     width: "Width (mm)",
@@ -516,7 +530,6 @@ const I18N = {
     direction: "Direction",
     threadPitch: "Thread pitch",
     threadCount: "Thread count",
-    generateGcode: "Generate G-code",
     gcode: "G-code",
     preview2d: "2D (XY)",
     start: "Start",
@@ -548,7 +561,6 @@ const I18N = {
     leftG03: "Left (G03)",
     previewEmpty: "Generate G-code for the preview",
     settingsLoaded: "Settings loaded",
-    modeLoaded: "Mode {mode} loaded",
     gcodeGeneratedPreviewOk: "G-code generated · preview OK",
     gcodeGeneratedSettingsError: "G-code generated · settings FAILED",
     generateFirst: "Generate the G-code first",
@@ -576,6 +588,22 @@ function tr(key, vars = {}) {
   return text;
 }
 
+function isInches() {
+  return (document.getElementById('global_units')?.value || 'mm') === 'in';
+}
+
+function unitize(text) {
+  if (!isInches() || text == null) return text;
+  return String(text)
+    .replace(/\(mm\/min\)/gi, '(in/min)')
+    .replace(/mm\/min/gi, 'in/min')
+    .replace(/\(mm\)/gi, '(in)')
+    .replace(/\ben mm\b/gi, 'en in')
+    .replace(/\bin mm\b/gi, 'in inches')
+    .replace(/, mm\b/gi, ', in')
+    .replace(/\bmm\b/gi, 'in');
+}
+
 function applyLanguage() {
   const lang = getLanguage();
   document.documentElement.lang = lang;
@@ -583,9 +611,9 @@ function applyLanguage() {
   if (selector) selector.value = lang;
   document.querySelectorAll("[data-i18n]").forEach(el => {
     const key = el.dataset.i18n;
-    if (I18N[lang]?.[key]) el.textContent = I18N[lang][key];
+    if (I18N[lang]?.[key]) el.textContent = unitize(I18N[lang][key]);
   });
-  applyTooltips();  // ← ajouter
+  applyTooltips();
 }
 
 function applyTooltips() {
@@ -594,18 +622,13 @@ function applyTooltips() {
   const op = (document.getElementById('operation')?.value) || '1';
   const modeTips = pack.modes[op] || {};
   const commonTips = pack.common || {};
-
-  // Communs (projet)
   for (const id of Object.keys(commonTips)) {
     const el = document.getElementById(id);
-    if (el) el.title = commonTips[id];
+    if (el) el.title = unitize(commonTips[id]);
   }
-
-  // Champs du mode courant + champs partagés (start, outil…)
-  // Les clés de modes correspondent aux id HTML
   for (const id of Object.keys(modeTips)) {
     const el = document.getElementById(id);
-    if (el) el.title = modeTips[id];
+    if (el) el.title = unitize(modeTips[id]);
   }
 }
 
@@ -623,12 +646,10 @@ document.addEventListener("DOMContentLoaded", () => {
   applyLanguage();
 });
 </script>
-
 </head>
 <body>
 <div class="layout">
   <div class="sidebar">
-
     <div class="section language-section">
       <div class="section-title" data-i18n="language">Langue</div>
       <select id="language-select" aria-label="Language">
@@ -636,7 +657,6 @@ document.addEventListener("DOMContentLoaded", () => {
         <option value="en">English</option>
       </select>
     </div>
-
     <div class="section">
       <div class="section-title" data-i18n="operationMode">Mode d'opération</div>
       <select id="operation" class="mode-select">
@@ -650,10 +670,18 @@ document.addEventListener("DOMContentLoaded", () => {
     </div>
     <div class="section">
       <div class="section-title" data-i18n="project">Projet (commun)</div>
-      <label data-i18n="projectName">Nom projet</label>
-      <input type="text" id="project_name" value="test">
-      <label data-i18n="machine">Machine</label>
-      <input type="text" id="machine" value="CNC_450x800">
+      <div class="row2">
+        <div>
+          <label data-i18n="projectName">Nom projet</label>
+          <input type="text" id="project_name" value="test">
+        </div>
+        <div>
+          <label data-i18n="machine">Machine</label>
+          <input type="text" id="machine" value="CNC_450x800">
+        </div>
+      </div>
+      <label data-i18n="startupCodes">Codes démarrage</label>
+      <input type="text" id="startup_codes" value="M7 M8 M3 G04P5">
       <div class="row2">
         <div>
           <label data-i18n="units">Unités</label>
@@ -682,15 +710,14 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="section">
       <div class="section-title" data-i18n="toolAndSpeeds">Outil & vitesses (par mode)</div>
       <div class="row2">
-        <div><label data-i18n="toolDiameter">Ø outil (mm)</label><input type="number" id="tool_diameter" value="10" min="0.1" step="0.1"></div>
+        <div><label data-i18n="feedRate">Avance (mm/min)</label><input type="number" id="feed_rate" value="1800" min="1" step="50"></div>
         <div><label data-i18n="spindleSpeed">Broche RPM</label><input type="number" id="spindle_speed" value="1000" min="0" step="100"></div>
       </div>
-      <div class="row2">
-        <div><label data-i18n="feedRate">Feed (mm/min)</label><input type="number" id="feed_rate" value="1800" min="1" step="50"></div>
+      <div class="row3">
+        <div><label data-i18n="toolDiameter">Ø outil (mm)</label><input type="number" id="tool_diameter" value="10" min="0.1" step="0.1"></div>
         <div><label data-i18n="depthPerPass">Prof. / passe</label><input type="number" id="depth_per_pass" value="1" min="0.01" step="0.1"></div>
+        <div><label data-i18n="totalDepth">Prof. totale</label><input type="number" id="total_depth" value="2" min="0.01" step="0.1"></div>
       </div>
-      <label data-i18n="totalDepth">Profondeur totale (mm)</label>
-      <input type="number" id="total_depth" value="2" min="0.01" step="0.1">
     </div>
     <div class="section mode-panel" id="panel-1">
       <div class="section-title" data-i18n="surfacing">Surfaçage</div>
@@ -698,58 +725,80 @@ document.addEventListener("DOMContentLoaded", () => {
         <div><label data-i18n="widthX">Largeur X</label><input type="number" id="width_x" value="100" min="0.1" step="0.1"></div>
         <div><label data-i18n="lengthY">Longueur Y</label><input type="number" id="length_y" value="100" min="0.1" step="0.1"></div>
       </div>
-      <label data-i18n="overlapPercent">Chevauchement %</label>
-      <input type="number" id="overlap_percent" value="50" min="0" max="99" step="1">
-      <label data-i18n="pathType">Type de parcours</label>
-      <select id="path_type_surf">
-        <option value="conventional" data-i18n="opposition">Opposition</option>
-        <option value="climb" data-i18n="climb">Avalant</option>
-        <option value="alternate" data-i18n="alternate">Alterné</option>
-      </select>
+      <div class="row2">
+        <div>
+          <label data-i18n="overlapPercent">Chevauchement %</label>
+          <input type="number" id="overlap_percent" value="50" min="0" max="99" step="1">
+        </div>
+        <div>
+          <label data-i18n="pathType">Type de parcours</label>
+          <select id="path_type_surf">
+            <option value="conventional" data-i18n="opposition">Opposition</option>
+            <option value="climb" data-i18n="climb">Avalant</option>
+            <option value="alternate" data-i18n="alternate">Alterné</option>
+          </select>
+        </div>
+      </div>
     </div>
     <div class="section mode-panel hidden" id="panel-2">
       <div class="section-title" data-i18n="contourDrilling">Perçage détourage</div>
-      <label data-i18n="holeDiameter">Ø trou (mm)</label>
-      <input type="number" id="hole_diameter" value="30" min="0.1" step="0.1">
-      <label data-i18n="drillingType">Type perçage</label>
-      <select id="drilling_type">
-        <option value="contour" data-i18n="throughHole">Trou traversant (contour)</option>
-        <option value="blind" data-i18n="blindHole">Trou borgne</option>
-        <option value="outer" data-i18n="outerDiameter">Diamètre extérieur</option>
-      </select>
-      <label data-i18n="path">Parcours</label>
-      <select id="path_type_contour">
-        <option value="conventional" data-i18n="oppositionG02">Opposition (G02)</option>
-        <option value="climb" data-i18n="climbG03">Avalant (G03)</option>
-      </select>
-      <label data-i18n="blindOverlap">Chevauchement % (borgne)</label>
-      <input type="number" id="overlap_blind" value="50" min="0" max="99" step="1">
+      <div class="row2">
+        <div>
+          <label data-i18n="holeDiameter">Ø trou (mm)</label>
+          <input type="number" id="hole_diameter" value="30" min="0.1" step="0.1">
+        </div>
+        <div>
+          <label data-i18n="drillingType">Type perçage</label>
+          <select id="drilling_type">
+            <option value="contour" data-i18n="throughHole">Trou traversant (contour)</option>
+            <option value="blind" data-i18n="blindHole">Trou borgne</option>
+            <option value="outer" data-i18n="outerDiameter">Diamètre extérieur</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div>
+          <label data-i18n="blindOverlap">Chevauchement % (borgne)</label>
+          <input type="number" id="overlap_blind" value="50" min="0" max="99" step="1">
+        </div>
+        <div>
+          <label data-i18n="path">Parcours</label>
+          <select id="path_type_contour">
+            <option value="conventional" data-i18n="oppositionG02">Opposition (G02)</option>
+            <option value="climb" data-i18n="climbG03">Avalant (G03)</option>
+          </select>
+        </div>
+      </div>
     </div>
     <div class="section mode-panel hidden" id="panel-3">
       <div class="section-title" data-i18n="matrixDrilling">Matrice RAST</div>
       <div class="row2">
-        <div><label data-i18n="columns">Colonnes</label><input type="number" id="num_cols" value="3" min="1" step="1"></div>
-        <div><label data-i18n="rows">Lignes</label><input type="number" id="num_rows" value="3" min="1" step="1"></div>
+        <div><label data-i18n="columns">Colonnes X</label><input type="number" id="num_cols" value="3" min="1" step="1"></div>
+        <div><label data-i18n="rows">Lignes Y</label><input type="number" id="num_rows" value="3" min="1" step="1"></div>
       </div>
       <div class="row2">
         <div><label data-i18n="spacingX">Pas X</label><input type="number" id="spacing_x" value="10" min="0" step="0.1"></div>
         <div><label data-i18n="spacingY">Pas Y</label><input type="number" id="spacing_y" value="10" min="0" step="0.1"></div>
       </div>
-      <label data-i18n="deburrHeight">Hauteur débourrage</label>
-      <input type="number" id="deburr_height" value="2" min="0.1" step="0.1">
     </div>
     <div class="section mode-panel hidden" id="panel-4">
       <div class="section-title" data-i18n="cornerRadius">Rayon 90°</div>
-      <label data-i18n="radius">Rayon (mm)</label>
-      <input type="number" id="radius" value="10" min="0.1" step="0.1">
-      <label data-i18n="corner">Coin</label>
-      <select id="corner_type">
-        <option value="front_left" data-i18n="frontLeft">Avant Gauche (AVG)</option>
-        <option value="front_right" data-i18n="frontRight">Avant Droit (AVD)</option>
-        <option value="rear_right" data-i18n="rearRight">Arrière Droit (ARD)</option>
-        <option value="rear_left" data-i18n="rearLeft">Arrière Gauche (ARG)</option>
-      </select>
-      <label>Parcours</label>
+      <div class="row2">
+        <div>
+          <label data-i18n="radius">Rayon (mm)</label>
+          <input type="number" id="radius" value="10" min="0.1" step="0.1">
+        </div>
+        <div>
+          <label data-i18n="corner">Coin</label>
+          <select id="corner_type">
+            <option value="front_left" data-i18n="frontLeft">Avant Gauche (AVG)</option>
+            <option value="front_right" data-i18n="frontRight">Avant Droit (AVD)</option>
+            <option value="rear_right" data-i18n="rearRight">Arrière Droit (ARD)</option>
+            <option value="rear_left" data-i18n="rearLeft">Arrière Gauche (ARG)</option>
+          </select>
+        </div>
+      </div>
+      <label data-i18n="path">Parcours</label>
       <select id="path_type_corner">
         <option value="conventional" data-i18n="opposition">Opposition</option>
         <option value="climb" data-i18n="climb">Avalant</option>
@@ -757,13 +806,12 @@ document.addEventListener("DOMContentLoaded", () => {
     </div>
     <div class="section mode-panel hidden" id="panel-5">
       <div class="section-title" data-i18n="oblongHole">Trou oblong</div>
-      <div class="row2">
+      <div class="row3">
         <div><label data-i18n="lengthX">Longueur X</label><input type="number" id="ob_length_x" value="20" min="0" step="0.1"></div>
-        <div><label>Longueur Y</label><input type="number" id="ob_length_y" value="20" min="0" step="0.1"></div>
+        <div><label data-i18n="lengthY">Longueur Y</label><input type="number" id="ob_length_y" value="20" min="0" step="0.1"></div>
+        <div><label data-i18n="width">Largeur (mm)</label><input type="number" id="ob_width" value="10" min="0.1" step="0.1"></div>
       </div>
-      <label data-i18n="width">Largeur (mm)</label>
-      <input type="number" id="ob_width" value="10" min="0.1" step="0.1">
-      <label>Parcours</label>
+      <label data-i18n="path">Parcours</label>
       <select id="path_type_oblong">
         <option value="conventional" data-i18n="opposition">Opposition</option>
         <option value="climb" data-i18n="climb">Avalant</option>
@@ -771,21 +819,35 @@ document.addEventListener("DOMContentLoaded", () => {
     </div>
     <div class="section mode-panel hidden" id="panel-6">
       <div class="section-title" data-i18n="threading">Filetage</div>
-      <label data-i18n="threadHoleDiameter">Ø trou / pièce (mm)</label>
-      <input type="number" id="th_hole_diameter" value="30" min="0.1" step="0.1">
-      <label data-i18n="type">Type</label>
-      <select id="thread_type">
-        <option value="nut_internal" data-i18n="internalNut">Écrou (interne)</option>
-        <option value="screw_external" data-i18n="externalScrew">Vis (externe)</option>
-      </select>
-      <label data-i18n="direction">Sens</label>
-      <select id="path_type_thread">
-        <option value="right" data-i18n="rightG02">Droite (G02)</option>
-        <option value="left" data-i18n="leftG03">Gauche (G03)</option>
-      </select>
+      <div class="row3">
+        <div>
+          <label data-i18n="threadHoleDiameter">Ø trou / pièce</label>
+          <input type="number" id="th_hole_diameter" value="30" min="0.1" step="0.1">
+        </div>
+        <div>
+          <label data-i18n="threadPitch">Pas filet</label>
+          <input type="number" id="thread_pitch" value="1.5" min="0.01" step="0.05">
+        </div>
+        <div>
+          <label data-i18n="threadCount">Nb filets</label>
+          <input type="number" id="thread_number" value="6" min="1" step="1">
+        </div>
+      </div>
       <div class="row2">
-        <div><label data-i18n="threadPitch">Pas filet</label><input type="number" id="thread_pitch" value="1.5" min="0.01" step="0.05"></div>
-        <div><label data-i18n="threadCount">Nb filets</label><input type="number" id="thread_number" value="6" min="1" step="1"></div>
+        <div>
+          <label data-i18n="type">Type</label>
+          <select id="thread_type">
+            <option value="nut_internal" data-i18n="internalNut">Écrou (interne)</option>
+            <option value="screw_external" data-i18n="externalScrew">Vis (externe)</option>
+          </select>
+        </div>
+        <div>
+          <label data-i18n="direction">Sens</label>
+          <select id="path_type_thread">
+            <option value="right" data-i18n="rightG02">Droite (G02)</option>
+            <option value="left" data-i18n="leftG03">Gauche (G03)</option>
+          </select>
+        </div>
       </div>
     </div>
   </div>
@@ -868,6 +930,89 @@ function showModePanel(op) {
   if (panel) panel.classList.remove('hidden');
 }
 
+/* ========== Conversion mm ↔ in ========== */
+const MM_PER_IN = 25.4;
+const DIMENSION_HTML_IDS = [
+  'start_x', 'start_y', 'start_z', 'clearance_height',
+  'tool_diameter', 'feed_rate', 'depth_per_pass', 'total_depth',
+  'width_x', 'length_y', 'hole_diameter', 'spacing_x', 'spacing_y',
+  'radius', 'ob_length_x', 'ob_length_y', 'ob_width',
+  'th_hole_diameter', 'thread_pitch'
+];
+const DIMENSION_JSON_KEYS = new Set([
+  'start_x', 'start_y', 'start_z', 'clearance_height',
+  'tool_diameter', 'feed_rate', 'depth_per_pass', 'total_depth',
+  'width_x', 'length_y', 'hole_diameter', 'spacing_x', 'spacing_y',
+  'radius', 'length_x', 'width', 'thread_pitch'
+]);
+let lastUnits = 'mm';
+
+function roundConverted(n, toUnits) {
+  if (!Number.isFinite(n)) return n;
+
+  if (toUnits === 'in') {
+    // 4 décimales
+    return Math.round(n * 1e4) / 1e4;
+  }
+
+  // mm — 3 décimales, avec correction d'aller-retour
+  // Erreur max due à 4 digits en pouces : 0.00005 × 25.4 ≈ 0.00127 mm
+  const SNAP = 0.0013;
+  for (let d = 0; d <= 3; d++) {
+    const f = Math.pow(10, d);
+    const candidate = Math.round(n * f) / f;
+    if (Math.abs(n - candidate) <= SNAP) {
+      return Math.round(candidate * 1e3) / 1e3;
+    }
+  }
+  return Math.round(n * 1e3) / 1e3;
+}
+
+function convertAllDimensions(factor, toUnits) {
+  for (const id of DIMENSION_HTML_IDS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const v = parseFloat(el.value);
+    if (!Number.isFinite(v)) continue;
+    el.value = roundConverted(v * factor, toUnits);
+  }
+  for (const mk of [
+    'surfacing', 'contour_drilling', 'matrix_drilling',
+    'corner_radius', 'oblong_hole', 'threading'
+  ]) {
+    const section = settingsCache[mk];
+    if (!section || typeof section !== 'object') continue;
+    for (const key of Object.keys(section)) {
+      if (!DIMENSION_JSON_KEYS.has(key)) continue;
+      const v = section[key];
+      if (typeof v === 'number' && Number.isFinite(v)) {
+        section[key] = roundConverted(v * factor, toUnits);
+      }
+    }
+  }
+}
+
+function applyUnitsChange(newUnits) {
+  const oldUnits = lastUnits;
+  if (newUnits === oldUnits) {
+    applyLanguage();
+    return;
+  }
+  captureMode(str('operation') || '1');
+  let factor = 1;
+  if (oldUnits === 'mm' && newUnits === 'in') factor = 1 / MM_PER_IN;
+  else if (oldUnits === 'in' && newUnits === 'mm') factor = MM_PER_IN;
+  if (factor !== 1) {
+    convertAllDimensions(factor, newUnits);
+    const op = str('operation') || '1';
+    const map = MODE_MAP[op];
+    if (map && settingsCache[map.key]) writeModeToForm(op, settingsCache[map.key]);
+  }
+  lastUnits = newUnits;
+  settingsCache.global_units = newUnits;
+  applyLanguage();
+}
+
 /* ========== Preview 2D ========== */
 function parseWord(line, letter) {
   const re = new RegExp(letter + '([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)', 'i');
@@ -891,16 +1036,13 @@ function parseGCodePaths(gcode) {
       z: nz == null ? z : (abs ? nz : z + nz)
     };
   }
-
   function addLine(x0, y0, z0, x1, y1, z1, rapid) {
     if (x0 === x1 && y0 === y1 && z0 === z1) return;
     segs.push({ type: rapid ? 'rapid' : 'cut', x0, y0, z0, x1, y1, z1 });
-    // Plongée verticale active : mouvement d'usinage (non rapide) où seul Z varie
     if (!rapid && x0 === x1 && y0 === y1 && z0 !== z1) {
       plunges.push({ x: x1, y: y1, z: z1 });
     }
   }
-
   function addArc(x0, y0, z0, x1, y1, z1, i, j, cw) {
     const cx = x0 + (i || 0);
     const cy = y0 + (j || 0);
@@ -932,22 +1074,18 @@ function parseGCodePaths(gcode) {
     if (!line) continue;
     if (/^G90\b/i.test(line)) { abs = true; continue; }
     if (/^G91\b/i.test(line)) { abs = false; continue; }
-
     const gMatch = line.match(/\bG0*(\d+)\b/i);
     const g = gMatch ? parseInt(gMatch[1], 10) : null;
     if (g == null && !/[XYZIJK]/i.test(line)) continue;
-
     const nx = parseWord(line, 'X');
     const ny = parseWord(line, 'Y');
     const nz = parseWord(line, 'Z');
     const ni = parseWord(line, 'I');
     const nj = parseWord(line, 'J');
     const p = toAbs(nx, ny, nz);
-
     if (!startSet && (nx != null || ny != null)) {
       startX = p.x; startY = p.y; startZ = p.z; startSet = true;
     }
-
     if (g === 0 || g === 00) {
       addLine(x, y, z, p.x, p.y, p.z, true);
       x = p.x; y = p.y; z = p.z;
@@ -958,7 +1096,6 @@ function parseGCodePaths(gcode) {
       addArc(x, y, z, p.x, p.y, p.z, ni || 0, nj || 0, g === 2);
       x = p.x; y = p.y; z = p.z;
     } else if (nx != null || ny != null || nz != null) {
-      // continuation without explicit G → treat as last motion type is hard; skip pure Z
       if (nx != null || ny != null) {
         addLine(x, y, z, p.x, p.y, p.z, false);
         x = p.x; y = p.y;
@@ -975,9 +1112,6 @@ function fmtL(v) {
   return v.toFixed(2);
 }
 
-/* Dessine une vue générique (2 axes quelconques) dans un canvas donné,
-   avec une échelle et des bornes imposées de l’extérieur (pour que XZ et XY
-   partagent la même échelle mm/px). */
 function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, axisALabel, axisBLabel, w, h, pad, scale, minA, maxA, minB, maxB, toolDiameter, plungePoints) {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.floor(w * dpr);
@@ -987,7 +1121,6 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = '#0a0e16';
   ctx.fillRect(0, 0, w, h);
-
   if (!segs.length) {
     ctx.fillStyle = '#6a7898';
     ctx.font = '12px system-ui';
@@ -995,16 +1128,12 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
     ctx.fillText(tr('previewEmpty'), w / 2, h / 2);
     return;
   }
-
   const dA = Math.max(1e-6, maxA - minA);
   const dB = Math.max(1e-6, maxB - minB);
   const oA = (w - dA * scale) / 2 - minA * scale;
   const oB = (h + dB * scale) / 2 + minB * scale;
-
   function tA(a) { return oA + a * scale; }
   function tB(b) { return oB - b * scale; }
-
-  // Axes A=0 / B=0
   ctx.strokeStyle = '#334155';
   ctx.lineWidth = 1;
   ctx.setLineDash([3, 3]);
@@ -1015,13 +1144,9 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
   ctx.lineTo(tA(0), tB(maxB));
   ctx.stroke();
   ctx.setLineDash([]);
-
-  // Cadre bounds
   ctx.strokeStyle = '#1e293b';
   ctx.lineWidth = 1;
   ctx.strokeRect(tA(minA), tB(maxB), (maxA - minA) * scale, (maxB - minB) * scale);
-
-  // Segments parcours
   for (const s of segs) {
     const a0 = s[axisAKey + '0'], a1 = s[axisAKey + '1'];
     const b0 = s[axisBKey + '0'], b1 = s[axisBKey + '1'];
@@ -1041,8 +1166,6 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
     ctx.stroke();
   }
   ctx.setLineDash([]);
-
-  // Plongées verticales actives (G01 Z seul) : petits points oranges
   if (plungePoints && plungePoints.length) {
     ctx.fillStyle = '#f0a030';
     for (const pt of plungePoints) {
@@ -1051,35 +1174,27 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
       ctx.fill();
     }
   }
-
-  // Point départ = empreinte réelle de l'outil (Ø fraise à l'échelle)
-  // Point départ = empreinte outil
-  // XY → cercle (section outil) ; XZ → rectangle (vue de côté, largeur = Ø)
   if (startSet) {
     const toolRadiusPx = Math.max(2, ((toolDiameter || 0) / 2) * scale);
     const cx = tA(startA);
     const cy = tB(startB);
     const isXZ = (axisAKey === 'x' && axisBKey === 'z');
-
     if (isXZ) {
-      // Rectangle centré : largeur = Ø outil, hauteur = 3 * h outil (échelle identique)
-      const w = toolRadiusPx * 2;
-      const h = toolRadiusPx * 6;
+      const ww = toolRadiusPx * 2;
+      const hh = toolRadiusPx * 6;
       ctx.beginPath();
-      ctx.rect(cx - w / 2, cy - h / 2, w, h);
+      ctx.rect(cx - ww / 2, cy - hh / 2, ww, hh);
       ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
       ctx.fill();
       ctx.strokeStyle = '#22c55e';
       ctx.lineWidth = 2;
       ctx.setLineDash([]);
       ctx.stroke();
-      // Centre
       ctx.beginPath();
       ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
       ctx.fillStyle = '#22c55e';
       ctx.fill();
     } else {
-      // Cercle (vue XY)
       ctx.beginPath();
       ctx.arc(cx, cy, toolRadiusPx, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
@@ -1094,17 +1209,12 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
       ctx.fill();
     }
   }
-
-  // Point origine (0,0)
   ctx.fillStyle = '#38bdf8';
   ctx.beginPath();
   ctx.arc(tA(0), tB(0), 3.5, 0, Math.PI * 2);
   ctx.fill();
-
-  // Labels
   ctx.font = '10px ui-monospace, monospace';
   ctx.textBaseline = 'middle';
-
   function labelAt(a, b, text, anchor) {
     const px = tA(a), py = tB(b);
     let ax = 0, ay = 0;
@@ -1115,7 +1225,6 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
     else if (anchor === 'bottom') ay = 11;
     else if (anchor === 'left' || anchor === 'right') ay = 0;
     else ay = -11;
-
     const tw = ctx.measureText(text).width;
     const bx = px + ax - (ctx.textAlign === 'center' ? tw / 2 : ctx.textAlign === 'right' ? tw : 0);
     const by = py + ay - 6;
@@ -1124,7 +1233,6 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
     ctx.fillStyle = '#cbd5e1';
     ctx.fillText(text, px + ax, py + ay);
   }
-
   labelAt(0, 0, axisALabel + '0,' + axisBLabel + '0', 'bottom');
   labelAt(minA, (minB + maxB) / 2, axisALabel + 'min ' + fmtL(minA), 'right');
   labelAt(maxA, (minB + maxB) / 2, axisALabel + 'max ' + fmtL(maxA), 'left');
@@ -1132,9 +1240,6 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
   labelAt((minA + maxA) / 2, maxB, axisBLabel + 'max ' + fmtL(maxB), 'bottom');
 }
 
-/* Optimise la hauteur relative du plan XZ (haut) par rapport au plan XY (bas),
-   selon le rapport profondeur (Z) / longueur (Y) réel de la pièce, borné pour
-   que les deux vues restent lisibles. */
 function computeTopPaneFraction(segs) {
   if (!segs.length) return 0.25;
   let minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -1156,13 +1261,11 @@ function drawPreview(gcode, toolDiameter) {
   if (toolDiameter != null) lastToolDiameter = toolDiameter;
   const td = lastToolDiameter;
   const { segs, startX, startY, startZ, startSet, plunges } = parseGCodePaths(gcode);
-
   const paneXZ = document.getElementById('viz-pane-xz');
   const paneXY = document.getElementById('viz-pane-xy');
   const frac = computeTopPaneFraction(segs);
   paneXZ.style.flex = frac + ' 1 0%';
   paneXY.style.flex = (1 - frac) + ' 1 0%';
-
   const canvasXZ = document.getElementById('preview-canvas-xz');
   const canvasXY = document.getElementById('preview-canvas-xy');
   const wXZ = Math.max(30, canvasXZ.parentElement.clientWidth);
@@ -1170,14 +1273,11 @@ function drawPreview(gcode, toolDiameter) {
   const wXY = Math.max(30, canvasXY.parentElement.clientWidth);
   const hXY = Math.max(30, canvasXY.parentElement.clientHeight);
   const pad = 24;
-
   if (!segs.length) {
     drawView(canvasXZ, segs, 0, 0, false, 'x', 'z', 'X', 'Z', wXZ, hXZ, pad, 1, 0, 1, 0, 1, td);
     drawView(canvasXY, segs, 0, 0, false, 'x', 'y', 'X', 'Y', wXY, hXY, pad, 1, 0, 1, 0, 1, td);
     return;
   }
-
-  // Bornes communes sur X, et propres à Y (vue XY) et Z (vue XZ)
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const s of segs) {
     minX = Math.min(minX, s.x0, s.x1); maxX = Math.max(maxX, s.x0, s.x1);
@@ -1192,17 +1292,13 @@ function drawPreview(gcode, toolDiameter) {
   minX = Math.min(minX, 0); maxX = Math.max(maxX, 0);
   minY = Math.min(minY, 0); maxY = Math.max(maxY, 0);
   minZ = Math.min(minZ, 0); maxZ = Math.max(maxZ, 0);
-
   const dX = Math.max(1e-6, maxX - minX);
   const dY = Math.max(1e-6, maxY - minY);
   const dZ = Math.max(1e-6, maxZ - minZ);
-
-  // Échelle unique (mm/px) satisfaisant les deux vues, sur les deux panneaux
   const scale = Math.min(
     (wXZ - 2 * pad) / dX, (hXZ - 2 * pad) / dZ,
     (wXY - 2 * pad) / dX, (hXY - 2 * pad) / dY
   );
-
   drawView(canvasXZ, segs, startX, startZ, startSet, 'x', 'z', 'X', 'Z', wXZ, hXZ, pad, scale, minX, maxX, minZ, maxZ, td);
   drawView(canvasXY, segs, startX, startY, startSet, 'x', 'y', 'X', 'Y', wXY, hXY, pad, scale, minX, maxX, minY, maxY, td, plunges);
 }
@@ -1211,7 +1307,7 @@ window.addEventListener('resize', () => {
   if (generatedCode) drawPreview(generatedCode);
 });
 
-/* ========== Settings PAR MODE (identique version validée) ========== */
+/* ========== Settings PAR MODE ========== */
 const MODE_MAP = {
   '1': { key: 'surfacing', fields: {
     start_x:'start_x', start_y:'start_y', start_z:'start_z', clearance_height:'clearance_height',
@@ -1229,7 +1325,7 @@ const MODE_MAP = {
     start_x:'start_x', start_y:'start_y', start_z:'start_z', clearance_height:'clearance_height',
     tool_diameter:'tool_diameter', spindle_speed:'spindle_speed', feed_rate:'feed_rate',
     depth_per_pass:'depth_per_pass', total_depth:'total_depth', num_cols:'num_cols', num_rows:'num_rows',
-    spacing_x:'spacing_x', spacing_y:'spacing_y', deburr_height:'deburr_height'
+    spacing_x:'spacing_x', spacing_y:'spacing_y'
   }},
   '4': { key: 'corner_radius', fields: {
     start_x:'start_x', start_y:'start_y', start_z:'start_z', clearance_height:'clearance_height',
@@ -1255,6 +1351,7 @@ const MODE_MAP = {
 let settingsCache = {
   last_operation: '1', project_name: 'test', machine: 'CNC_450x800',
   global_units: 'mm', global_feed_rate_percent: '50%', language: 'fr',
+  startup_codes: 'M7 M8 M3 G04P5',
   surfacing: {}, contour_drilling: {}, matrix_drilling: {},
   corner_radius: {}, oblong_hole: {}, threading: {}
 };
@@ -1292,6 +1389,7 @@ function captureMode(op) {
   settingsCache.machine = str('machine') || 'CNC';
   settingsCache.global_units = str('global_units') || 'mm';
   settingsCache.global_feed_rate_percent = (str('plunge_percent') || '50') + '%';
+  settingsCache.startup_codes = str('startup_codes') || 'M7 M8 M3 G04P5';
 }
 async function saveSettings() {
   captureMode(str('operation') || '1');
@@ -1305,7 +1403,7 @@ async function saveSettings() {
 }
 async function loadSettings() {
   try {
-    const s = await call('getSettings'); // objet déjà parsé, {} si rien n'a encore été sauvé
+    const s = await call('getSettings');
     if (s && typeof s === 'object') {
       if (s.language === 'fr' || s.language === 'en') settingsCache.language = s.language;
       if (s.surfacing || s.threading || s.last_operation) Object.assign(settingsCache, s);
@@ -1316,6 +1414,7 @@ async function loadSettings() {
         settingsCache.machine = s.machine || settingsCache.machine;
         settingsCache.global_units = s.global_units || 'mm';
         if (s.plunge_percent !== undefined) settingsCache.global_feed_rate_percent = String(s.plunge_percent).replace('%','') + '%';
+        if (s.startup_codes !== undefined) settingsCache.startup_codes = s.startup_codes;
         const map = MODE_MAP[op];
         if (map) {
           const section = {};
@@ -1334,8 +1433,10 @@ async function loadSettings() {
   document.getElementById('operation').value = op;
   document.getElementById('project_name').value = settingsCache.project_name || 'test';
   document.getElementById('machine').value = settingsCache.machine || 'CNC';
-  document.getElementById('global_units').value = settingsCache.global_units || 'mm';
+  lastUnits = settingsCache.global_units || 'mm';
+  document.getElementById('global_units').value = lastUnits;
   document.getElementById('plunge_percent').value = String(settingsCache.global_feed_rate_percent || '50%').replace('%','').trim() || '50';
+  document.getElementById('startup_codes').value = settingsCache.startup_codes || 'M7 M8 M3 G04P5';
   showModePanel(op);
   const map = MODE_MAP[op];
   if (map && settingsCache[map.key]) writeModeToForm(op, settingsCache[map.key]);
@@ -1356,7 +1457,7 @@ async function loadSettings() {
       writeModeToForm(newOp, settingsCache[map.key]);
     settingsCache.last_operation = newOp;
     prevOp = newOp;
-    applyTooltips();  // ← ajouter
+    applyTooltips();
     generate();
   });
 })();
@@ -1369,29 +1470,47 @@ async function loadSettings() {
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => { generate(); }, delay);
   }
-  // Champs texte/nombre : anti-rebond pendant la frappe
   sidebar.addEventListener('input', (e) => {
     const el = e.target;
     if (el.id === 'language-select' || el.id === 'operation') return;
     if (el.tagName === 'INPUT') trigger(400);
   });
-  // Listes déroulantes : déclenchement immédiat (déjà un choix discret)
   sidebar.addEventListener('change', (e) => {
     const el = e.target;
     if (el.id === 'language-select' || el.id === 'operation') return;
+    if (el.id === 'global_units') {
+      applyUnitsChange(el.value);
+    }
     if (el.tagName === 'SELECT') trigger(0);
   });
 })();
 
-/* ========== Générateurs (inchangés) ========== */
+function expandStartupCodes(raw, spindleSpeed) {
+  let s = String(raw || '').trim();
+  s = s.replace(/\bG0*4\s*P\s*([-+]?\d*\.?\d+)/gi, 'G04§P$1');
+  const tokens = s.split(/\s+/).filter(Boolean);
+  const lines = [];
+  for (const tok of tokens) {
+    let code = tok.replace('§', ' ');
+    if (/^M0*3$/i.test(code)) {
+      code = code + ' S' + Math.round(spindleSpeed);
+    }
+    lines.push(code);
+  }
+  return lines;
+}
+
 function generateHeader(p, stockX, stockY, stockZ) {
   const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
   const units = p.global_units === 'in' ? 'G20' : 'G21';
+  const startupLines = expandStartupCodes(p.startup_codes, p.spindle_speed);
   return [
     '; NC from Utility-G-code Generator (FigUI)',
     '; ' + p.project_name, '; ' + now, '; ' + p.machine,
     `; (${fmt(stockX)}, ${fmt(stockY)}, ${fmt(stockZ)} ${p.global_units})`,
-    `${units} ;(${p.global_units})`, 'G90', `M3 S${Math.round(p.spindle_speed)}`, 'G04 P5', ''
+    `${units} ;(${p.global_units})`, 'G90',
+    ...startupLines,
+    ''
   ].join('\n');
 }
 function footer(clearance) {
@@ -1492,6 +1611,7 @@ function genMatrix(p) {
   if (p.depth_per_pass > p.total_depth) throw new Error('Profondeur/passe > totale');
   const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
   const plunge = p.feed_rate * p.plunge_percent / 100;
+  const approachOffset = 1;
   let g = [];
   g.push('; Matrix drilling RAST');
   g.push(`; ${p.num_cols} x ${p.num_rows} holes`);
@@ -1507,10 +1627,13 @@ function genMatrix(p) {
       g.push(`; Hole X=${fmt(cx)} Y=${fmt(cy)}`);
       g.push(`G00 X${fmt(cx)} Y${fmt(cy)}`);
       let currentZ = p.start_z;
+      let prevZ = p.start_z;
       for (let k = 0; k < numPassesZ; k++) {
         currentZ -= Math.min(p.depth_per_pass, p.total_depth - k * p.depth_per_pass);
+        if (k > 0) g.push(`G00 Z${fmt(prevZ + approachOffset)}`);
         g.push(`G01 Z${fmt(currentZ)} F${fmt(plunge)}`);
-        if (k < numPassesZ - 1) g.push(`G00 Z${fmt(p.deburr_height)}`);
+        prevZ = currentZ;
+        if (k < numPassesZ - 1) g.push(`G00 Z${fmt(p.clearance_height)}`);
       }
       g.push(`G00 Z${fmt(p.clearance_height)}`);
     }
@@ -1667,6 +1790,7 @@ function collectParams() {
     machine: str('machine') || 'CNC',
     global_units: str('global_units') || 'mm',
     plunge_percent: Math.min(100, Math.max(1, num('plunge_percent', 50))),
+    startup_codes: str('startup_codes') || 'M7 M8 M3 G04P5',
     start_x: num('start_x', 0), start_y: num('start_y', 0), start_z: num('start_z', 0),
     clearance_height: Math.max(0.1, num('clearance_height', 5)),
     tool_diameter: Math.max(0.1, num('tool_diameter', 10)),
@@ -1677,7 +1801,7 @@ function collectParams() {
   };
   if (op === '1') return { ...base, width_x: Math.max(0.1, num('width_x', 100)), length_y: Math.max(0.1, num('length_y', 100)), overlap_percent: Math.min(99, Math.max(0, num('overlap_percent', 50))), path_type: str('path_type_surf') || 'conventional' };
   if (op === '2') return { ...base, hole_diameter: Math.max(0.1, num('hole_diameter', 30)), drilling_type: str('drilling_type') || 'contour', path_type: str('path_type_contour') || 'conventional', overlap_percent: Math.min(99, Math.max(0, num('overlap_blind', 50))) };
-  if (op === '3') return { ...base, num_cols: Math.max(1, Math.round(num('num_cols', 1))), num_rows: Math.max(1, Math.round(num('num_rows', 1))), spacing_x: Math.max(0, num('spacing_x', 10)), spacing_y: Math.max(0, num('spacing_y', 10)), deburr_height: Math.max(0.1, num('deburr_height', 2)) };
+  if (op === '3') return { ...base, num_cols: Math.max(1, Math.round(num('num_cols', 1))), num_rows: Math.max(1, Math.round(num('num_rows', 1))), spacing_x: Math.max(0, num('spacing_x', 10)), spacing_y: Math.max(0, num('spacing_y', 10)) };
   if (op === '4') return { ...base, radius: Math.max(0.1, num('radius', 10)), corner_type: str('corner_type') || 'front_left', path_type: str('path_type_corner') || 'conventional' };
   if (op === '5') return { ...base, length_x: Math.max(0, num('ob_length_x', 20)), length_y: Math.max(0, num('ob_length_y', 20)), width: Math.max(0.1, num('ob_width', 10)), path_type: str('path_type_oblong') || 'conventional' };
   if (op === '6') return { ...base, hole_diameter: Math.max(0.1, num('th_hole_diameter', 30)), thread_type: str('thread_type') || 'nut_internal', path_type: str('path_type_thread') || 'right', thread_pitch: Math.max(0.01, num('thread_pitch', 1.5)), thread_number: Math.max(1, Math.round(num('thread_number', 6))) };
@@ -1727,14 +1851,13 @@ async function openInViewer() {
     ]) {
       try { await call(t.method, t.params); loaded = true; break; } catch (_) {}
     }
-    setStatus(loaded ? tr('loadedInViewer') : tr('savedOpenFiles', {path}), 'ok');
+    setStatus(loaded ? tr('loadedInViewer') : tr('savedOpenFiles', { path }), 'ok');
     setTimeout(() => { try { call('close'); } catch (_) {} }, 400);
   } catch (e) {
-    setStatus(tr('error', {message: (e.message || e)}), 'err');
+    setStatus(tr('error', { message: (e.message || e) }), 'err');
   }
 }
 
-// Chargement des réglages, application de la langue, puis génération automatique initiale
 loadSettings().finally(() => { applyLanguage(); generate(); });
 </script>
 </body>

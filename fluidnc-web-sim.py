@@ -123,8 +123,17 @@ def handle_realtime(byte):
 AXIS    = {'X':0,'Y':1,'Z':2,'A':3,'B':4,'C':5}
 JOG_RE  = re.compile(r'\$J=.*?F(\d+(?:\.\d+)?)\s+([XYZABC])(-?\d+(?:\.\d+)?)', re.I)
 ZERO_RE = re.compile(r'G10\s+L20\s+P0\s+([XYZABC])(-?\d+(?:\.\d+)?)', re.I)
-PROBE_RE = re.compile(r'G38\.\d\s+F(\d+(?:\.\d+)?)\s+Z(-\d+(?:\.\d+)?)', re.I)
+PROBE_RE = re.compile(r'\bG38\.\d\b', re.I)
+PROBE_FEED_RE = re.compile(r'\bF(-?\d+(?:\.\d+)?)\b', re.I)
+PROBE_AXIS_RE = re.compile(r'\b([XYZABC])(-?\d+(?:\.\d+)?)\b', re.I)
 SPINDLE_RE = re.compile(r'S(\d+)\s+(M3|M4)', re.I)
+
+SIM_STARTUP_STATUS = '\n'.join((
+    '[MSG:INFO: FluidNC v4.0.4 (Simulator)]',
+    '[MSG:INFO: Connecting to STA SSID: SimNet]',
+    '[MSG:INFO: Connected - IP is 127.0.0.1]',
+    '[MSG:INFO: Probe Pin: gpio.34]',
+))
 
 async def handle_text_command(cmd, ws):
     cmd = cmd.strip()
@@ -169,18 +178,26 @@ async def handle_text_command(cmd, ws):
                 machine.update(state='Idle', feed=0)
         await ws.send('ok\n'); return
 
-    # G38.x probe cycle — simulate contact at half the travel distance
-    m = PROBE_RE.search(cmd)
-    if m:
-        feed = float(m.group(1))
-        dist = float(m.group(2))   # negative Z distance
+    # G38.x probe cycle — simulate contact halfway along the commanded axis.
+    # FigUI uses this for Z surfaces as well as X/Y edge and center probing.
+    if PROBE_RE.search(cmd):
+        feed_match = PROBE_FEED_RE.search(cmd)
+        axis_match = PROBE_AXIS_RE.search(cmd)
+        if not feed_match or not axis_match:
+            await ws.send('error:2\n'); return
+        feed = float(feed_match.group(1))
+        axis = axis_match.group(1).upper()
+        dist = float(axis_match.group(2))
+        axis_index = AXIS.get(axis)
+        if feed <= 0 or dist == 0 or axis_index is None or axis_index >= len(machine['wpos']):
+            await ws.send('error:2\n'); return
         with _lock: machine.update(state='Run', feed=int(feed))
         travel_time = min(abs(dist / 2) / (feed / 60), 3.0)
         await asyncio.sleep(travel_time)
         with _lock:
-            contact_z = dist / 2
-            machine['wpos'][2] += contact_z
-            machine['mpos'][2] += contact_z
+            contact_distance = dist / 2
+            machine['wpos'][axis_index] += contact_distance
+            machine['mpos'][axis_index] += contact_distance
             machine.update(state='Idle', feed=0)
             pos = machine['wpos'][:]
         await ws.send(f"[PRB:{pos[0]:.3f},{pos[1]:.3f},{pos[2]:.3f}:1]\n")
@@ -206,9 +223,8 @@ async def handle_text_command(cmd, ws):
         await ws.send('ok\n'); return
 
     if cmd == '$SS':
-        await ws.send('[MSG:INFO: FluidNC v3.8 (Simulator)]\n')
-        await ws.send('[MSG:INFO: Connecting to STA SSID: SimNet]\n')
-        await ws.send('[MSG:INFO: Connected - IP is 127.0.0.1]\n')
+        for line in SIM_STARTUP_STATUS.splitlines():
+            await ws.send(line + '\n')
         await ws.send('ok\n'); return
 
     if cmd == '$X':
@@ -574,6 +590,7 @@ def do_command():
     if proxy:
         return do_proxy(request)
     if plain == '[ESP400]':         return esp400resp
+    if plain == '$SS':              return SIM_STARTUP_STATUS + '\n'
     if plain.startswith('[ESP401]'): return 'ok'
     if plain == '[ESP444]RESTART':  return 'ok'
     return 'ok'

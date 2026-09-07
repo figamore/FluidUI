@@ -281,19 +281,33 @@ function ProbeGraphic({
 
 interface ParamRowProps {
   label: string; value: number; onChange: (v: number) => void; unit: string
-  step?: number; min?: number; isTablet?: boolean
+  min?: number; isTablet?: boolean
 }
 
-function ParamRow({ label, value, onChange, unit, step = 0.1, min = 0, isTablet }: ParamRowProps) {
+function ParamRow({ label, value, onChange, unit, min = 0, isTablet }: ParamRowProps) {
+  const [draftValue, setDraftValue] = useState(() => String(value))
+
+  useEffect(() => {
+    setDraftValue(String(value))
+  }, [value])
+
+  function commitValue() {
+    const parsed = Number(draftValue.trim().replace(',', '.'))
+    if (Number.isFinite(parsed) && parsed >= min) onChange(parsed)
+    else setDraftValue(String(value))
+  }
+
   return (
-    <label className="flex items-center justify-between gap-3">
+    <div className="flex items-center justify-between gap-3">
       <span className={`text-text-muted font-semibold shrink-0 ${isTablet ? 'text-lg' : 'text-sm'}`}>{label}</span>
       <span className="flex items-center gap-1.5">
-        <input type="number" value={value} onChange={e => onChange(Number(e.target.value))} step={step} min={min}
+        <input type="text" inputMode="decimal" aria-label={label} value={draftValue}
+          onChange={e => setDraftValue(e.target.value)} onBlur={commitValue}
+          onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
           className={`input-field font-mono text-right ${isTablet ? 'w-36 py-2 text-xl' : 'w-28 py-1 text-base'}`} />
         <span className={`text-text-dim shrink-0 ${isTablet ? 'text-lg w-20' : 'text-sm w-14'}`}>{unit}</span>
       </span>
-    </label>
+    </div>
   )
 }
 
@@ -599,15 +613,15 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
           </div>
           <div className={`rounded-md border border-border bg-elevated/30 p-3 ${isTablet ? 'space-y-4' : 'space-y-2'}`}>
             <ParamRow isTablet={isTablet} label="Probe feed" value={toDisplayInput(probeFeed, units, units === 'in' ? 2 : 0)}
-              onChange={v => setProbeFeed(displayToMm(v, units))} unit={feedUnitLabel(units)} step={units === 'in' ? .1 : 10} min={units === 'in' ? .1 : 1} />
+              onChange={v => setProbeFeed(displayToMm(v, units))} unit={feedUnitLabel(units)} min={units === 'in' ? .1 : 1} />
             <ParamRow isTablet={isTablet} label="Max travel" value={toDisplayInput(maxTravel, units, units === 'in' ? 3 : 1)}
-              onChange={v => setMaxTravel(displayToMm(v, units))} unit={linearUnitLabel(units)} step={units === 'in' ? .1 : 1} min={units === 'in' ? .1 : 1} />
+              onChange={v => setMaxTravel(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .1 : 1} />
             <ParamRow isTablet={isTablet} label="Retract" value={toDisplayInput(retract, units, units === 'in' ? 4 : 2)}
-              onChange={v => setRetract(displayToMm(v, units))} unit={linearUnitLabel(units)} step={units === 'in' ? .01 : .5} min={units === 'in' ? .01 : .5} />
+              onChange={v => setRetract(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .01 : .5} />
             {usesDiameter && <ParamRow isTablet={isTablet} label="Probe diameter" value={toDisplayInput(probeDiameter, units, units === 'in' ? 4 : 2)}
-              onChange={v => setProbeDiameter(displayToMm(v, units))} unit={linearUnitLabel(units)} step={units === 'in' ? .001 : .01} min={0} />}
+              onChange={v => setProbeDiameter(displayToMm(v, units))} unit={linearUnitLabel(units)} min={0} />}
             {!usesDiameter && <ParamRow isTablet={isTablet} label="Plate thickness" value={toDisplayInput(plateThick, units, units === 'in' ? 4 : 2)}
-              onChange={v => setPlateThick(displayToMm(v, units))} unit={linearUnitLabel(units)} step={units === 'in' ? .001 : .01} min={0} />}
+              onChange={v => setPlateThick(displayToMm(v, units))} unit={linearUnitLabel(units)} min={0} />}
           </div>
         </div>
 

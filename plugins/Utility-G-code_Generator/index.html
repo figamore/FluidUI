@@ -481,6 +481,15 @@ const I18N = {
     savedOpenFiles: "Sauvé : {path} — ouvre dans Files",
     error: "Erreur : {message}",
     holeToolError: "Ø trou > Ø outil",
+    pitchThreadError: "Pas et nb filets > 0",
+    depthPassError: "Profondeur/passe > profondeur totale",
+    overlapRangeError: "Chevauchement 0–99%",
+    holeMustBeLarger: "Ø trou doit être > Ø outil",
+    colsRowsError: "Nb colonnes/lignes >= 1",
+    radiusToolError: "Rayon et Ø outil > 0",
+    widthToolError: "Largeur >= Ø outil",
+    unknownMode: "Mode inconnu",
+    holeToolError: "Ø trou > Ø outil",
     pitchThreadError: "Pas et nb filets > 0"
   },
   en: {
@@ -568,6 +577,15 @@ const I18N = {
     loadedInViewer: "Loaded in viewer",
     savedOpenFiles: "Saved: {path} — open it in Files",
     error: "Error: {message}",
+    holeToolError: "Hole Ø > tool Ø",
+    pitchThreadError: "Pitch and thread count > 0",
+    depthPassError: "Depth/pass > total depth",
+    overlapRangeError: "Overlap must be 0–99%",
+    holeMustBeLarger: "Hole Ø must be > tool Ø",
+    colsRowsError: "Columns/rows >= 1",
+    radiusToolError: "Radius and tool Ø must be > 0",
+    widthToolError: "Width must be >= tool Ø",
+    unknownMode: "Unknown mode",
     holeToolError: "Hole Ø > tool Ø",
     pitchThreadError: "Pitch and thread count > 0"
   }
@@ -1520,8 +1538,9 @@ function footer(clearance) {
 function genSurfacing(p) {
   const pathCode = { conventional: '1', climb: '2', alternate: '3' }[p.path_type] || '1';
   const labels = { conventional: 'Opposition', climb: 'Avalant', alternate: 'Alterné' };
-  if (p.depth_per_pass > p.total_depth) throw new Error('Profondeur/passe > profondeur totale');
-  if (p.overlap_percent < 0 || p.overlap_percent >= 100) throw new Error('Chevauchement 0–99%');
+  // --- genSurfacing ---
+  if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
+  if (p.overlap_percent < 0 || p.overlap_percent >= 100) throw new Error(tr('overlapRangeError'));
   const stepOver = p.tool_diameter * (1 - p.overlap_percent / 100);
   const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
   const numPassesY = Math.ceil(p.length_y / stepOver);
@@ -1531,10 +1550,9 @@ function genSurfacing(p) {
   const plunge = p.feed_rate * p.plunge_percent / 100;
   let g = [];
   g.push(`; Surfacing (${labels[p.path_type] || 'Opposition'})`);
-  g.push(`G0 S${Math.round(p.spindle_speed)} F${Math.round(p.feed_rate)}`);
-  g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
-  if (pathCode === '2') g.push(`G00 X${fmt(initialX)} Y${fmt(endY)}`);
-  else g.push(`G00 X${fmt(initialX)} Y${fmt(initialY)}`);
+  g.push(`G01 Z${fmt(p.clearance_height)} S${Math.round(p.spindle_speed)} F${Math.round(p.feed_rate)}`);
+  if (pathCode === '2') g.push(`G01 X${fmt(initialX)} Y${fmt(endY)}`);
+  else g.push(`G01 X${fmt(initialX)} Y${fmt(initialY)}`);
   let currentZ = p.start_z;
   for (let i = 0; i < numPassesZ; i++) {
     currentZ -= Math.min(p.depth_per_pass, p.total_depth - i * p.depth_per_pass);
@@ -1560,12 +1578,53 @@ function genSurfacing(p) {
     if (currentY <= p.start_y + p.length_y) g.push(`G01 Y${fmt(currentY)} F${Math.round(p.feed_rate)}`);
   }
   g.push(`G00 Z${fmt(p.clearance_height)}`);
-  return { body: g.join('\n'), stockX: p.width_x + p.tool_diameter, stockY: p.length_y + p.tool_diameter, stockZ: p.total_depth + p.clearance_height };
+
+    // --- Tour de finition sur les 4 faces (décalage = rayon outil) ---
+  const toolR = p.tool_diameter / 2;
+  const xMin = p.start_x - toolR;
+  const xMax = p.start_x + p.width_x + toolR;
+  const yMin = p.start_y - toolR;
+  const yMax = p.start_y + p.length_y + toolR;
+  const finalZ = currentZ;
+  const feed = Math.round(p.feed_rate);
+
+  g.push('; Perimeter finish (tool radius offset)');
+  g.push(`G00 Z${fmt(p.clearance_height)}`);
+  g.push(`G00 X${fmt(xMin)} Y${fmt(yMin)}`);
+  g.push(`G01 Z${fmt(finalZ)} F${fmt(plunge)}`);
+
+  if (pathCode === '1') {
+    // Opposition → horaire (CW)
+    g.push(`G01 X${fmt(xMax)} Y${fmt(yMin)} F${feed}`);
+    g.push(`G01 X${fmt(xMax)} Y${fmt(endY)} F${feed}`);
+    g.push(`G01 X${fmt(xMin)} Y${fmt(endY)} F${feed}`);
+    g.push(`G01 X${fmt(xMin)} Y${fmt(yMin)} F${feed}`);
+  } else if (pathCode === '2')  {
+    // Avalant / Alterné → anti-horaire (CCW)
+    g.push(`G01 X${fmt(xMax)} Y${fmt(yMin)} F${feed}`);
+    g.push(`G01 X${fmt(xMax)} Y${fmt(endY)} F${feed}`);
+    g.push(`G01 X${fmt(xMin)} Y${fmt(endY)} F${feed}`);
+    g.push(`G0 X${fmt(xMin)} Y${fmt(yMin)} Z${fmt(p.clearance_height)}`);
+  } else {
+    // Avalant / Alterné → anti-horaire (CCW)
+    g.push(`G01 X${fmt(xMin)} Y${fmt(endY)} F${feed}`);
+    g.push(`G01 X${fmt(xMax)} Y${fmt(endY)} F${feed}`);
+    g.push(`G01 X${fmt(xMax)} Y${fmt(yMin)} F${feed}`);
+    g.push(`G01 X${fmt(xMin)} Y${fmt(yMin)} F${feed}`);
+  }
+
+  g.push(`G00 Z${fmt(p.clearance_height)}`);
+  return {
+    body: g.join('\n'),
+    stockX: p.width_x + p.tool_diameter,
+    stockY: p.length_y + p.tool_diameter,
+    stockZ: p.total_depth + p.clearance_height
+  };
 }
 
 function genContour(p) {
-  if (p.hole_diameter <= p.tool_diameter) throw new Error('Ø trou doit être > Ø outil');
-  if (p.depth_per_pass > p.total_depth) throw new Error('Profondeur/passe > totale');
+  if (p.hole_diameter <= p.tool_diameter) throw new Error(tr('holeMustBeLarger'));
+  if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
   const isBlind = p.drilling_type === 'blind';
   const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
   const holeR = p.hole_diameter / 2, toolR = p.tool_diameter / 2;
@@ -1607,8 +1666,8 @@ function genContour(p) {
 }
 
 function genMatrix(p) {
-  if (p.num_cols < 1 || p.num_rows < 1) throw new Error('Nb colonnes/lignes >= 1');
-  if (p.depth_per_pass > p.total_depth) throw new Error('Profondeur/passe > totale');
+  if (p.num_cols < 1 || p.num_rows < 1) throw new Error(tr('colsRowsError'));
+  if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
   const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
   const plunge = p.feed_rate * p.plunge_percent / 100;
   const approachOffset = 1;
@@ -1647,8 +1706,8 @@ function genMatrix(p) {
 }
 
 function genCorner(p) {
-  if (p.radius <= 0 || p.tool_diameter <= 0) throw new Error('Rayon et Ø outil > 0');
-  if (p.depth_per_pass > p.total_depth) throw new Error('Profondeur/passe > totale');
+  if (p.radius <= 0 || p.tool_diameter <= 0) throw new Error(tr('radiusToolError'));
+  if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
   const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
   const arcR = p.radius + p.tool_diameter / 2;
   const plunge = p.feed_rate * p.plunge_percent / 100;
@@ -1688,26 +1747,26 @@ function genCorner(p) {
 }
 
 function genOblong(p) {
-  if (p.width < p.tool_diameter) throw new Error('Largeur >= Ø outil');
-  if (p.depth_per_pass > p.total_depth) throw new Error('Profondeur/passe > totale');
+  if (p.width < p.tool_diameter) throw new Error(tr('widthToolError'));
+  if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
   const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
   const halfW = (p.width - p.tool_diameter) / 2, halfLx = p.length_x / 2, halfLy = p.length_y / 2;
   const plunge = p.feed_rate * p.plunge_percent / 100;
   const conv = p.path_type === 'conventional';
   let g = [];
   g.push('; Oblong hole');
-  g.push(`G0 S${Math.round(p.spindle_speed)} F${Math.round(p.feed_rate)}`);
   g.push('G90');
-  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)} Z${fmt(p.start_z)} F${Math.round(p.feed_rate)}`);
+  g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
+  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}  F${Math.round(p.feed_rate)}`);
   for (let i = 0; i < numPassesZ; i++) {
     const targetZ = p.start_z - Math.min((i + 1) * p.depth_per_pass, p.total_depth);
     g.push(`; Pass ${i + 1} at Z=${fmt(targetZ)}`);
     if (conv) {
       g.push('G90');
-      g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y - halfW)} Z${fmt(p.start_z)} F${Math.round(p.feed_rate)}`);
+      g.push(`G01 X${fmt(p.start_x)} Y${fmt(p.start_y - halfW)} F${Math.round(p.feed_rate)}`);
       g.push(`G01 Z${fmt(targetZ)} F${fmt(plunge)}`);
       g.push('G91');
-      g.push(`G00 X${fmt(-halfLx)} Y${fmt(-halfLy)}`);
+      g.push(`G01 X${fmt(-halfLx)} Y${fmt(-halfLy)}`);
       g.push(`G02 X${fmt(-halfW)} Y${fmt(halfW)} I0.000 J${fmt(halfW)} F${Math.round(p.feed_rate)}`);
       g.push(`G01 X0.000 Y${fmt(p.length_y)} F${Math.round(p.feed_rate)}`);
       g.push(`G02 X${fmt(halfW)} Y${fmt(halfW)} I${fmt(halfW)} J0.000 F${Math.round(p.feed_rate)}`);
@@ -1719,10 +1778,10 @@ function genOblong(p) {
       g.push('G90');
     } else {
       g.push('G90');
-      g.push(`G00 X${fmt(p.start_x - halfW)} Y${fmt(p.start_y - p.length_y)} Z${fmt(p.start_z)} F${Math.round(p.feed_rate)}`);
+      g.push(`G01 X${fmt(p.start_x - halfW)} Y${fmt(p.start_y - p.length_y)} F${Math.round(p.feed_rate)}`);
       g.push(`G01 Z${fmt(targetZ)} F${fmt(plunge)}`);
       g.push('G91');
-      g.push(`G00 X${fmt(-halfLx)} Y${fmt(halfLy)}`);
+      g.push(`G01 X${fmt(-halfLx)} Y${fmt(halfLy)}`);
       g.push(`G03 X${fmt(halfW)} Y${fmt(-halfW)} I${fmt(halfW)} J0.000 F${Math.round(p.feed_rate)}`);
       g.push(`G01 X${fmt(p.length_x)} Y0.000 F${Math.round(p.feed_rate)}`);
       g.push(`G03 X${fmt(halfW)} Y${fmt(halfW)} I0.000 J${fmt(halfW)} F${Math.round(p.feed_rate)}`);
@@ -1734,7 +1793,8 @@ function genOblong(p) {
       g.push('G90');
     }
   }
-  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)} Z${fmt(p.start_z)}`);
+  g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
+  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}  F${Math.round(p.feed_rate)}`);
   g.push('G90');
   return { body: g.join('\n'), stockX: p.length_x + p.tool_diameter, stockY: p.length_y + p.tool_diameter, stockZ: p.start_z + p.total_depth };
 }

@@ -6,5 +6,5 @@
   "icon": "icon.png",
   "layoutTablet": "full",
   "entry": "index.html",
-  "files": ["index.html"]
+  "files": ["index.html","settings.json","icon.png"]
 }
